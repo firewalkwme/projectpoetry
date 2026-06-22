@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Mood } from "../lib/moods";
 
 type Props = {
@@ -7,6 +8,12 @@ type Props = {
 };
 
 export function PoemInput({ value, onChange, mood }: Props) {
+  const [draft, setDraft] = useState(value);
+
+  const handleSubmit = () => {
+    onChange(draft);
+  };
+
   return (
     <div
       style={{
@@ -16,10 +23,10 @@ export function PoemInput({ value, onChange, mood }: Props) {
         textAlign: "center",
       }}
     >
-      <h1 style={{ fontFamily: "Georgia, serif" }}>Mood Poem</h1>
+      <h1 style={{ fontFamily: "Georgia, serif" }}>Write here</h1>
       <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
         placeholder="Type or paste a poem..."
         rows={10}
         style={{
@@ -32,6 +39,21 @@ export function PoemInput({ value, onChange, mood }: Props) {
           resize: "vertical",
         }}
       />
+      <button
+        onClick={handleSubmit}
+        style={{
+          marginTop: "1rem",
+          fontSize: "1rem",
+          fontFamily: "Georgia, serif",
+          padding: "0.6rem 1.5rem",
+          borderRadius: 8,
+          border: "1px solid #888",
+          background: "#fff",
+          cursor: "pointer",
+        }}
+      >
+        Submit
+      </button>
       <p style={{ opacity: 0.7, marginTop: "0.5rem" }}>
         Detected mood: <strong>{mood}</strong>
       </p>
