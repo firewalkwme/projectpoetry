@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import "./App.css";
-import { FlowFieldBackground } from "./components/FlowFieldBackground";
+import { MoonPhase } from "./components/MoonPhase";
 import { NatureBackground } from "./components/NatureBackground";
 import { PoemInput } from "./components/PoemInput";
 import { DeconstructedPoem } from "./components/DeconstructedPoem";
 import { detectMood } from "./lib/moods";
-import { getThreadColor } from "./lib/particlePresets";
 import { resolveElemental } from "./lib/elemental";
 
 function App() {
@@ -29,7 +28,7 @@ function App() {
 
   return (
     <>
-      <FlowFieldBackground tint={getThreadColor(mood)} />
+      <MoonPhase />
       <PoemInput
         value={poem}
         onChange={setPoem}
