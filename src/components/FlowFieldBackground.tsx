@@ -1,6 +1,12 @@
 import { useEffect, useRef } from "react";
 
-type Vortex = { cx: number; cy: number; strength: number; sign: number };
+type Vortex = {
+  cx: number;
+  cy: number;
+  strength: number;
+  sign: number;
+  decay?: number;
+};
 
 type Particle = { x: number; y: number; life: number; maxLife: number };
 
@@ -30,12 +36,41 @@ export function FlowFieldBackground({ tint = "#ffffff" }: Props) {
     canvas.width = width;
     canvas.height = height;
 
-    const vortices: Vortex[] = Array.from({ length: 4 }, () => ({
+    const ambientVortices: Vortex[] = Array.from({ length: 3 }, () => ({
       cx: Math.random() * width,
       cy: Math.random() * height,
-      strength: 80 + Math.random() * 160,
+      strength: 60 + Math.random() * 100,
       sign: Math.random() > 0.5 ? 1 : -1,
     }));
+
+    const burstVortices: Vortex[] = [];
+
+    const mouse = { x: width / 2, y: height / 2, active: false, sign: 1, strength: 260 };
+
+    function onMouseMove(e: MouseEvent) {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      mouse.active = true;
+    }
+
+    function onMouseDown(e: MouseEvent) {
+      const sign = e.button === 2 ? -1 : 1;
+      burstVortices.push({
+        cx: e.clientX,
+        cy: e.clientY,
+        strength: 1400,
+        sign,
+        decay: 0.96,
+      });
+    }
+
+    function onContextMenu(e: MouseEvent) {
+      e.preventDefault();
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("contextmenu", onContextMenu);
 
     const particles: Particle[] = Array.from({ length: 700 }, () =>
       spawnParticle(width, height)
@@ -44,13 +79,31 @@ export function FlowFieldBackground({ tint = "#ffffff" }: Props) {
     function fieldAngle(x: number, y: number): number {
       let dx = 0;
       let dy = 0;
-      for (const v of vortices) {
+
+      for (const v of ambientVortices) {
         const ddx = x - v.cx;
         const ddy = y - v.cy;
         const falloff = v.strength / (ddx * ddx + ddy * ddy + 2000);
         dx += -ddy * falloff * v.sign;
         dy += ddx * falloff * v.sign;
       }
+
+      if (mouse.active) {
+        const ddx = x - mouse.x;
+        const ddy = y - mouse.y;
+        const falloff = mouse.strength / (ddx * ddx + ddy * ddy + 2000);
+        dx += -ddy * falloff * mouse.sign;
+        dy += ddx * falloff * mouse.sign;
+      }
+
+      for (const v of burstVortices) {
+        const ddx = x - v.cx;
+        const ddy = y - v.cy;
+        const falloff = v.strength / (ddx * ddx + ddy * ddy + 2000);
+        dx += -ddy * falloff * v.sign;
+        dy += ddx * falloff * v.sign;
+      }
+
       return Math.atan2(dy, dx);
     }
 
@@ -61,6 +114,12 @@ export function FlowFieldBackground({ tint = "#ffffff" }: Props) {
     function frame() {
       ctx!.fillStyle = "rgba(0,0,0,0.045)";
       ctx!.fillRect(0, 0, width, height);
+
+      for (let i = burstVortices.length - 1; i >= 0; i--) {
+        const v = burstVortices[i];
+        v.strength *= v.decay ?? 0.95;
+        if (v.strength < 4) burstVortices.splice(i, 1);
+      }
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -105,6 +164,9 @@ export function FlowFieldBackground({ tint = "#ffffff" }: Props) {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("contextmenu", onContextMenu);
     };
   }, [tint]);
 

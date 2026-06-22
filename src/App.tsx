@@ -31,7 +31,6 @@ function App() {
       <PoemInput
         value={poem}
         onChange={setPoem}
-        mood={mood}
         onSubmit={() => setSubmitted(true)}
       />
     </>

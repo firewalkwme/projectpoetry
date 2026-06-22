@@ -1,14 +1,12 @@
 import { useState } from "react";
-import type { Mood } from "../lib/moods";
 
 type Props = {
   value: string;
   onChange: (value: string) => void;
-  mood: Mood;
   onSubmit: () => void;
 };
 
-export function PoemInput({ value, onChange, mood, onSubmit }: Props) {
+export function PoemInput({ value, onChange, onSubmit }: Props) {
   const [draft, setDraft] = useState(value);
 
   const handleSubmit = () => {
@@ -91,10 +89,6 @@ export function PoemInput({ value, onChange, mood, onSubmit }: Props) {
       >
         Submit
       </button>
-
-      <p style={{ opacity: 0.45, fontSize: "0.85rem", letterSpacing: "0.05em" }}>
-        mood: {mood}
-      </p>
     </div>
   );
 }
