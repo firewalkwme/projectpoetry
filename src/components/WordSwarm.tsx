@@ -45,10 +45,16 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
   const movedRef = useRef(false);
   const lastTime = useRef<number | null>(null);
 
-  // (re)initialize physics state whenever the word list or container changes
+  // latest container size, read (not subscribed to) by the init effect so
+  // a resize never resets already-running word positions -- only the word
+  // list itself (a new poem) should reset the simulation
+  const sizeRef = useRef({ width: containerWidth, height: containerHeight });
+  sizeRef.current = { width: containerWidth, height: containerHeight };
+
+  // initialize physics state once per word list (new poem), not on resize
   useEffect(() => {
-    const w = Math.max(containerWidth, 40);
-    const h = Math.max(containerHeight, 40);
+    const w = Math.max(sizeRef.current.width, 40);
+    const h = Math.max(sizeRef.current.height, 40);
     const physics = getMoodPhysics(mood);
 
     stateRef.current = words.map((word) => {
@@ -68,7 +74,8 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
         flee: { active: false, dirX: 0, dirY: 0, timeLeft: 0 },
       };
     });
-  }, [words, mood, containerWidth, containerHeight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [words, mood]);
 
   // measure actual rendered size of each word once mounted, so collision
   // boxes match real text width instead of a guessed constant
@@ -120,17 +127,20 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
           }
         }
 
-        const speed = Math.hypot(s.vx, s.vy);
-        const maxSpeed = physics.speed * (s.flee.active ? 5 : 2.2);
-        if (speed > maxSpeed) {
-          s.vx = (s.vx / speed) * maxSpeed;
-          s.vy = (s.vy / speed) * maxSpeed;
+        // bleed off a little energy each frame so repeated collisions
+        // settle into smooth flow instead of compounding into jitter
+        if (!s.flee.active) {
+          s.vx *= 1 - Math.min(dt * 1.4, 0.3);
+          s.vy *= 1 - Math.min(dt * 1.4, 0.3);
         }
       }
 
       // pairwise box-overlap repulsion so words never sit on top of each
       // other; soft acceleration push rather than a rigid position snap,
-      // so it still reads as organic motion rather than a rules engine
+      // so it still reads as organic motion rather than a rules engine.
+      // force is capped per pair so a deep initial overlap can't produce
+      // a single violent jolt -- it eases apart over a few frames instead
+      const MAX_PUSH = 70;
       for (let i = 0; i < states.length; i++) {
         for (let j = i + 1; j < states.length; j++) {
           const a = states[i];
@@ -142,8 +152,8 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
           if (overlapX > 0 && overlapY > 0) {
             const pushX = (overlapX / (a.halfW + b.halfW)) * Math.sign(dx || Math.random() - 0.5);
             const pushY = (overlapY / (a.halfH + b.halfH)) * Math.sign(dy || Math.random() - 0.5);
-            const fx = pushX * REPEL_STRENGTH * dt;
-            const fy = pushY * REPEL_STRENGTH * dt;
+            const fx = Math.max(-MAX_PUSH, Math.min(MAX_PUSH, pushX * REPEL_STRENGTH * dt));
+            const fy = Math.max(-MAX_PUSH, Math.min(MAX_PUSH, pushY * REPEL_STRENGTH * dt));
             if (!a.dragging) {
               a.vx -= fx;
               a.vy -= fy;
@@ -153,6 +163,19 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
               b.vy += fy;
             }
           }
+        }
+      }
+
+      // final speed clamp, applied after physics + repulsion, so a
+      // collision spike never reaches the screen before being capped
+      for (let i = 0; i < states.length; i++) {
+        const s = states[i];
+        if (s.dragging) continue;
+        const speed = Math.hypot(s.vx, s.vy);
+        const maxSpeed = physics.speed * (s.flee.active ? 5 : 2.2);
+        if (speed > maxSpeed) {
+          s.vx = (s.vx / speed) * maxSpeed;
+          s.vy = (s.vy / speed) * maxSpeed;
         }
       }
 
