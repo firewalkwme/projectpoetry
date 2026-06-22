@@ -8,23 +8,31 @@ type Star = {
   speed: number;
   vx: number;
   vy: number;
+  falling: boolean;
+  trail: { x: number; y: number }[];
 };
 
-function makeStars(width: number, height: number, count: number): Star[] {
-  return Array.from({ length: count }, () => {
-    const angle = Math.random() * Math.PI * 2;
-    const drift = 2 + Math.random() * 4;
-    return {
-      x: Math.random() * width,
-      y: Math.random() * height,
-      r: Math.random() * 1.4 + 0.3,
-      phase: Math.random() * Math.PI * 2,
-      speed: 0.4 + Math.random() * 0.8,
-      vx: Math.cos(angle) * drift,
-      vy: Math.sin(angle) * drift,
-    };
-  });
+function spawnStar(width: number, height: number): Star {
+  const angle = Math.random() * Math.PI * 2;
+  const drift = 2 + Math.random() * 4;
+  return {
+    x: Math.random() * width,
+    y: Math.random() * height,
+    r: Math.random() * 1.4 + 0.3,
+    phase: Math.random() * Math.PI * 2,
+    speed: 0.4 + Math.random() * 0.8,
+    vx: Math.cos(angle) * drift,
+    vy: Math.sin(angle) * drift,
+    falling: false,
+    trail: [],
+  };
 }
+
+function makeStars(width: number, height: number, count: number): Star[] {
+  return Array.from({ length: count }, () => spawnStar(width, height));
+}
+
+const HIT_RADIUS = 14;
 
 export function MoonPhase() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,15 +54,20 @@ export function MoonPhase() {
     let stars = makeStars(width, height, 140);
 
     const moon = { cx: width * 0.7, cy: height * 0.28 };
-    function updateMoonPosition() {
-      moon.cx = width * 0.7;
-      moon.cy = height * 0.28;
-    }
     let radius = Math.min(width, height) * 0.085;
+
+    // the moon wanders freely: a slowly drifting anchor point, orbited
+    // at a radius that itself breathes in and out, so the path traces
+    // loose, ever-changing spirals instead of a fixed circle
+    const orbit = {
+      angle: Math.random() * Math.PI * 2,
+      angularSpeed: 0.12 + Math.random() * 0.06,
+      radiusPhase: Math.random() * Math.PI * 2,
+    };
 
     const mouse = { x: -9999, y: -9999, hover: false };
     let phaseBoost = 0;
-    const pulses: { life: number }[] = [];
+    const pulses: { x: number; y: number; life: number }[] = [];
 
     function distanceToMoon(x: number, y: number) {
       return Math.hypot(x - moon.cx, y - moon.cy);
@@ -65,10 +78,31 @@ export function MoonPhase() {
       mouse.y = e.clientY;
       mouse.hover = distanceToMoon(mouse.x, mouse.y) < radius * 1.3;
     }
+
     function onClick(e: MouseEvent) {
       if (distanceToMoon(e.clientX, e.clientY) < radius * 1.4) {
         phaseBoost = Math.min(phaseBoost + 0.025, 0.12);
-        pulses.push({ life: 1 });
+        pulses.push({ x: moon.cx, y: moon.cy, life: 1 });
+        return;
+      }
+
+      let nearest: Star | null = null;
+      let nearestDist = HIT_RADIUS;
+      for (const star of stars) {
+        if (star.falling) continue;
+        const dist = Math.hypot(star.x - e.clientX, star.y - e.clientY);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = star;
+        }
+      }
+      if (nearest) {
+        const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.6;
+        const speed = 500 + Math.random() * 350;
+        nearest.falling = true;
+        nearest.vx = Math.cos(angle) * speed;
+        nearest.vy = Math.sin(angle) * speed;
+        nearest.trail = [];
       }
     }
     window.addEventListener("mousemove", onMouseMove);
@@ -93,7 +127,34 @@ export function MoonPhase() {
       ctx!.fillStyle = sky;
       ctx!.fillRect(0, 0, width, height);
 
-      for (const star of stars) {
+      for (let i = 0; i < stars.length; i++) {
+        const star = stars[i];
+
+        if (star.falling) {
+          star.trail.push({ x: star.x, y: star.y });
+          if (star.trail.length > 14) star.trail.shift();
+          star.x += star.vx * dt;
+          star.y += star.vy * dt;
+
+          for (let k = 0; k < star.trail.length; k++) {
+            const p = star.trail[k];
+            const alpha = (k / star.trail.length) * 0.7;
+            ctx!.fillStyle = `rgba(255, 240, 210, ${alpha})`;
+            ctx!.beginPath();
+            ctx!.arc(p.x, p.y, star.r * 1.4, 0, Math.PI * 2);
+            ctx!.fill();
+          }
+          ctx!.fillStyle = "rgba(255, 250, 235, 0.95)";
+          ctx!.beginPath();
+          ctx!.arc(star.x, star.y, star.r * 1.6, 0, Math.PI * 2);
+          ctx!.fill();
+
+          if (star.x > width + 60 || star.y > height + 60) {
+            stars[i] = spawnStar(width, height);
+          }
+          continue;
+        }
+
         star.x += star.vx * dt;
         star.y += star.vy * dt;
         if (star.x < 0) star.x += width;
@@ -107,6 +168,15 @@ export function MoonPhase() {
         ctx!.arc(star.x, star.y, star.r, 0, Math.PI * 2);
         ctx!.fill();
       }
+
+      // free-floating spiral wander: a drifting anchor orbited at a
+      // breathing radius, so the moon's path loops and loosens over time
+      const anchorX = width * 0.55 + Math.sin(t * 0.045) * width * 0.18 + Math.sin(t * 0.081 + 1.3) * width * 0.07;
+      const anchorY = height * 0.32 + Math.sin(t * 0.06 + 0.6) * height * 0.14 + Math.sin(t * 0.034 + 2.1) * height * 0.06;
+      const orbitRadius = radius * (1.6 + 1.3 * (0.5 + 0.5 * Math.sin(t * 0.05 + orbit.radiusPhase)));
+      orbit.angle += dt * orbit.angularSpeed;
+      moon.cx = anchorX + Math.cos(orbit.angle) * orbitRadius;
+      moon.cy = anchorY + Math.sin(orbit.angle) * orbitRadius * 0.65;
 
       // slow sine cycle: eases toward full and toward new rather than
       // moving at constant speed, so it visibly lingers near "full".
@@ -149,7 +219,7 @@ export function MoonPhase() {
         ctx!.strokeStyle = `rgba(245, 240, 220, ${p.life * 0.5})`;
         ctx!.lineWidth = 1.5;
         ctx!.beginPath();
-        ctx!.arc(moon.cx, moon.cy, ringRadius, 0, Math.PI * 2);
+        ctx!.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
         ctx!.stroke();
       }
 
@@ -163,7 +233,6 @@ export function MoonPhase() {
       canvas.width = width;
       canvas.height = height;
       radius = Math.min(width, height) * 0.085;
-      updateMoonPosition();
       stars = makeStars(width, height, 140);
     }
     window.addEventListener("resize", onResize);
