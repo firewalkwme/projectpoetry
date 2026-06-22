@@ -38,14 +38,25 @@ export const plasmaFragmentShader = `
 
   void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
-    float t = uTime * 0.15;
-    float n1 = fbm(uv * 2.2 + vec2(t, -t * 0.7));
-    float n2 = fbm(uv * 3.1 - vec2(-t * 0.5, t));
-    float blend = 0.5 + 0.5 * sin(n1 * 3.0 + n2 * 2.0 + uTime * 0.3);
+    float t = uTime * 0.1;
+
+    // domain warping: distort the sampling coordinate through layers of
+    // fbm before reading the final pattern, so nothing traces a clean curve
+    vec2 q = vec2(
+      fbm(uv * 1.6 + vec2(0.0, 0.0) + t),
+      fbm(uv * 1.6 + vec2(5.2, 1.3) - t * 0.8)
+    );
+    vec2 r = vec2(
+      fbm(uv * 1.6 + 3.2 * q + vec2(1.7, 9.2) + t * 0.6),
+      fbm(uv * 1.6 + 3.2 * q + vec2(8.3, 2.8) - t * 0.4)
+    );
+    float n = fbm(uv * 1.6 + 3.6 * r);
+
+    float blend = 0.5 + 0.5 * sin(n * 2.4 + length(r) * 1.8 + uTime * 0.2);
 
     vec3 base = mix(vec3(0.02, 0.02, 0.05), uTint, 0.65);
     vec3 color = mix(base * 0.3, uTint, blend);
-    color += 0.08 * fbm(uv * 6.0 + t * 2.0);
+    color = mix(color, uTint * 1.2, smoothstep(0.7, 1.0, length(q)) * 0.3);
 
     gl_FragColor = vec4(color, 1.0);
   }
