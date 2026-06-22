@@ -16,7 +16,7 @@ function App() {
     const { Component: Background, dominantTheme } = resolveEffect(poem);
     return (
       <>
-        <Background tint={getThreadColor(mood)} />
+        <Background />
         <FlowFieldBackground tint={getThreadColor(mood)} cornersOnly />
         <DeconstructedPoem
           poem={poem}

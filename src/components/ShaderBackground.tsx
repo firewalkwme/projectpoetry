@@ -3,10 +3,8 @@ import * as THREE from "three";
 
 type Props = {
   fragmentShader: string;
-  tint?: string;
-  speed?: number;
-  scale?: number;
-  turbulence?: number;
+  floats?: Record<string, number>;
+  colors?: Record<string, string>;
 };
 
 const VERTEX_SHADER = `
@@ -22,14 +20,12 @@ function hexToVec3(hex: string): THREE.Vector3 {
 
 export function ShaderBackground({
   fragmentShader,
-  tint = "#ffffff",
-  speed = 1,
-  scale = 1,
-  turbulence = 1,
+  floats = {},
+  colors = {},
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const liveRef = useRef({ tint, speed, scale, turbulence });
-  liveRef.current = { tint, speed, scale, turbulence };
+  const liveRef = useRef({ floats, colors });
+  liveRef.current = { floats, colors };
 
   useEffect(() => {
     const container = containerRef.current;
@@ -42,14 +38,16 @@ export function ShaderBackground({
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    const uniforms = {
+    const uniforms: Record<string, { value: number | THREE.Vector2 | THREE.Vector3 }> = {
       uTime: { value: 0 },
       uResolution: { value: new THREE.Vector2(1, 1) },
-      uTint: { value: hexToVec3(liveRef.current.tint) },
-      uSpeed: { value: liveRef.current.speed },
-      uScale: { value: liveRef.current.scale },
-      uTurbulence: { value: liveRef.current.turbulence },
     };
+    for (const key of Object.keys(liveRef.current.floats)) {
+      uniforms[key] = { value: liveRef.current.floats[key] };
+    }
+    for (const key of Object.keys(liveRef.current.colors)) {
+      uniforms[key] = { value: hexToVec3(liveRef.current.colors[key]) };
+    }
 
     const material = new THREE.ShaderMaterial({
       vertexShader: VERTEX_SHADER,
@@ -64,7 +62,7 @@ export function ShaderBackground({
       const w = window.innerWidth;
       const h = window.innerHeight;
       renderer.setSize(w, h);
-      uniforms.uResolution.value.set(w, h);
+      (uniforms.uResolution.value as THREE.Vector2).set(w, h);
     }
     resize();
     window.addEventListener("resize", resize);
@@ -73,10 +71,14 @@ export function ShaderBackground({
     const start = performance.now();
     function frame() {
       uniforms.uTime.value = (performance.now() - start) / 1000;
-      uniforms.uTint.value = hexToVec3(liveRef.current.tint);
-      uniforms.uSpeed.value = liveRef.current.speed;
-      uniforms.uScale.value = liveRef.current.scale;
-      uniforms.uTurbulence.value = liveRef.current.turbulence;
+      for (const key of Object.keys(liveRef.current.floats)) {
+        if (uniforms[key]) uniforms[key].value = liveRef.current.floats[key];
+      }
+      for (const key of Object.keys(liveRef.current.colors)) {
+        if (uniforms[key]) {
+          uniforms[key].value = hexToVec3(liveRef.current.colors[key]);
+        }
+      }
       renderer.render(scene, camera);
       raf = requestAnimationFrame(frame);
     }
