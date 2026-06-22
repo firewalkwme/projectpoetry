@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { hashString } from "../lib/hash";
-import { computeWordOffset } from "../lib/wordMotion";
+import { getMoodPhysics } from "../lib/wordMotion";
 import type { Mood } from "../lib/moods";
 
 type Props = {
   text: string;
   mood: Mood;
   color: string;
+  containerWidth: number;
   containerHeight: number;
   baseX: number;
   baseY: number;
@@ -17,40 +18,101 @@ export function FloatingWord({
   text,
   mood,
   color,
+  containerWidth,
   containerHeight,
   baseX,
   baseY,
 }: Props) {
   const hash = hashString(text + mood);
-  const speedVar = 0.75 + (hash % 50) / 100;
-  const fontScale = 0.9 + (hash % 6) * 0.05;
+  const fontScale = 0.95 + (hash % 6) * 0.06;
 
   const elRef = useRef<HTMLDivElement>(null);
-  const anchorRef = useRef({ x: baseX, y: baseY });
-  const startRef = useRef(performance.now());
-  const [dragging, setDragging] = useState(false);
+  const pos = useRef({ x: baseX, y: baseY });
+  const vel = useRef<{ x: number; y: number } | null>(null);
+  const lastTime = useRef<number | null>(null);
+  const [paused, setPaused] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    anchorRef.current = { x: baseX, y: baseY };
-  }, [baseX, baseY]);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     let raf: number;
+    const physics = getMoodPhysics(mood);
+
+    if (!vel.current) {
+      const angle = ((hash % 1000) / 1000) * Math.PI * 2;
+      vel.current = {
+        x: Math.cos(angle) * physics.speed,
+        y: Math.sin(angle) * physics.speed,
+      };
+    }
+
     function frame(now: number) {
+      const last = lastTime.current ?? now;
+      const dt = Math.min((now - last) / 1000, 0.05);
+      lastTime.current = now;
+
       const el = elRef.current;
-      if (el && !dragging) {
-        const t = ((now - startRef.current) / 1000) * speedVar;
-        const { dx, dy } = computeWordOffset(mood, t, hash, containerHeight);
-        el.style.transform = `translate(${anchorRef.current.x + dx}px, ${
-          anchorRef.current.y + dy
-        }px)`;
+      const v = vel.current!;
+
+      if (el && !paused && !dragging) {
+        const turbAngle = (Math.random() - 0.5) * physics.turbulence * dt;
+        const cos = Math.cos(turbAngle);
+        const sin = Math.sin(turbAngle);
+        const nvx = v.x * cos - v.y * sin;
+        const nvy = v.x * sin + v.y * cos;
+        v.x = nvx;
+        v.y = nvy + physics.biasY * dt;
+
+        if (Math.random() < physics.dartChance) {
+          const dartAngle = Math.random() * Math.PI * 2;
+          v.x += Math.cos(dartAngle) * physics.dartStrength * dt;
+          v.y += Math.sin(dartAngle) * physics.dartStrength * dt;
+        }
+
+        const speed = Math.hypot(v.x, v.y);
+        const maxSpeed = physics.speed * 2.2;
+        if (speed > maxSpeed) {
+          v.x = (v.x / speed) * maxSpeed;
+          v.y = (v.y / speed) * maxSpeed;
+        }
+
+        let nx = pos.current.x + v.x * dt;
+        let ny = pos.current.y + v.y * dt;
+
+        const w = Math.max(containerWidth, 40);
+        const h = Math.max(containerHeight, 40);
+
+        if (physics.edgeMode === "bounce") {
+          if (nx < 0) {
+            nx = 0;
+            v.x = Math.abs(v.x);
+          } else if (nx > w) {
+            nx = w;
+            v.x = -Math.abs(v.x);
+          }
+          if (ny < 0) {
+            ny = 0;
+            v.y = Math.abs(v.y);
+          } else if (ny > h) {
+            ny = h;
+            v.y = -Math.abs(v.y);
+          }
+        } else {
+          if (nx < 0) nx = w;
+          else if (nx > w) nx = 0;
+          if (ny < -20) ny = h + 20;
+          else if (ny > h + 20) ny = -20;
+        }
+
+        pos.current = { x: nx, y: ny };
+        el.style.transform = `translate(${nx}px, ${ny}px)`;
       }
+
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [mood, dragging, hash, speedVar, containerHeight]);
+  }, [mood, paused, dragging, containerWidth, containerHeight, hash]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -67,12 +129,12 @@ export function FloatingWord({
     if (elRef.current) {
       elRef.current.style.transform = `translate(${x}px, ${y}px)`;
     }
-    anchorRef.current = { x, y };
+    pos.current = { x, y };
   };
 
   const onPointerUp = () => {
     setDragging(false);
-    startRef.current = performance.now();
+    lastTime.current = null;
   };
 
   const style: CSSProperties = {
@@ -80,21 +142,14 @@ export function FloatingWord({
     top: 0,
     left: 0,
     transform: `translate(${baseX}px, ${baseY}px)`,
-    background: "rgba(255,255,255,0.92)",
-    color: "#1a1a1a",
+    color,
     fontFamily: "Georgia, serif",
     fontSize: `${fontScale}rem`,
-    padding: "0.3rem 0.6rem",
-    borderRadius: 6,
-    borderLeft: `3px solid ${color}`,
-    boxShadow: dragging
-      ? "0 10px 22px rgba(0,0,0,0.35)"
-      : "0 3px 10px rgba(0,0,0,0.2)",
+    textShadow: "0 1px 6px rgba(0,0,0,0.5)",
     whiteSpace: "nowrap",
     userSelect: "none",
     cursor: "grab",
     touchAction: "none",
-    zIndex: dragging ? 10 : 1,
   };
 
   return (
@@ -104,6 +159,8 @@ export function FloatingWord({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
       {text}
     </div>
