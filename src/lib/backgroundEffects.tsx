@@ -2,7 +2,8 @@ import type { ComponentType } from "react";
 import { ShaderBackground } from "../components/ShaderBackground";
 import { plasmaFragmentShader } from "./shaders/plasma";
 import { voronoiFragmentShader } from "./shaders/voronoi";
-import { tunnelFragmentShader } from "./shaders/tunnel";
+import { causticsFragmentShader } from "./shaders/caustics";
+import { marbleFragmentShader } from "./shaders/marble";
 import { hashString } from "./hash";
 
 type BackgroundProps = { tint?: string };
@@ -16,7 +17,8 @@ function withShader(fragmentShader: string): ComponentType<BackgroundProps> {
 export const BACKGROUND_EFFECTS: ComponentType<BackgroundProps>[] = [
   withShader(plasmaFragmentShader),
   withShader(voronoiFragmentShader),
-  withShader(tunnelFragmentShader),
+  withShader(causticsFragmentShader),
+  withShader(marbleFragmentShader),
 ];
 
 export function pickBackgroundEffect(seed: string) {

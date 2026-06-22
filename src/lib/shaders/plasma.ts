@@ -36,9 +36,34 @@ export const plasmaFragmentShader = `
     return total;
   }
 
+  // ridged variant: folds noise around zero so valleys turn into sharp
+  // crests, giving a different texture quality than smooth fbm
+  float ridgedFbm(vec2 p) {
+    float total = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 4; i++) {
+      float n = 1.0 - abs(noise(p));
+      total += n * n * amp;
+      p *= 2.1;
+      amp *= 0.55;
+    }
+    return total;
+  }
+
+  vec2 rotate(vec2 p, float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return mat2(c, -s, s, c) * p;
+  }
+
   void main() {
-    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
+    vec2 raw = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
     float t = uTime * 0.1;
+
+    // curl-like pre-pass: rotate the coordinate locally by an angle drawn
+    // from noise, so the whole field swirls rather than just drifting
+    float curlAngle = (noise(raw * 1.1 + t * 0.3) - 0.5) * 1.8;
+    vec2 uv = rotate(raw, curlAngle * 0.4);
 
     // domain warping: distort the sampling coordinate through layers of
     // fbm before reading the final pattern, so nothing traces a clean curve
@@ -51,12 +76,14 @@ export const plasmaFragmentShader = `
       fbm(uv * 1.6 + 3.2 * q + vec2(8.3, 2.8) - t * 0.4)
     );
     float n = fbm(uv * 1.6 + 3.6 * r);
+    float ridge = ridgedFbm(uv * 2.4 + 2.0 * r - t * 0.5);
 
     float blend = 0.5 + 0.5 * sin(n * 2.4 + length(r) * 1.8 + uTime * 0.2);
 
     vec3 base = mix(vec3(0.02, 0.02, 0.05), uTint, 0.65);
     vec3 color = mix(base * 0.3, uTint, blend);
     color = mix(color, uTint * 1.2, smoothstep(0.7, 1.0, length(q)) * 0.3);
+    color += uTint * ridge * 0.22;
 
     gl_FragColor = vec4(color, 1.0);
   }

@@ -45,10 +45,12 @@ export const voronoiFragmentShader = `
       for (int x = -1; x <= 1; x++) {
         vec2 offset = vec2(float(x), float(y));
         vec2 base = hash2(cell + offset);
-        vec2 wobble = vec2(
-          sin(uTime * 0.35 + base.x * 6.2831),
-          cos(uTime * 0.3 + base.y * 6.2831)
-        ) * 0.28;
+
+        // each point orbits its rest position instead of oscillating
+        // along a fixed axis, so motion reads as swirling, not jittering
+        float orbitAngle = uTime * (0.2 + base.x * 0.3) + base.y * 6.2831;
+        float orbitRadius = 0.22 + 0.1 * hash1(cell + offset + 3.7);
+        vec2 wobble = vec2(cos(orbitAngle), sin(orbitAngle)) * orbitRadius;
         vec2 point = base + wobble;
         float dist = length(local - offset - point);
         glow += 0.025 / (dist * dist + 0.02);
