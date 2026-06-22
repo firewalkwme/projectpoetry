@@ -13,7 +13,7 @@ function App() {
   const mood = useMemo(() => detectMood(poem), [poem]);
 
   if (submitted && poem.trim()) {
-    const { Component: Background, dominantTheme } = resolveEffect(poem);
+    const { Component: Background } = resolveEffect(poem);
     return (
       <>
         <Background />
@@ -21,7 +21,6 @@ function App() {
         <DeconstructedPoem
           poem={poem}
           mood={mood}
-          dominantTheme={dominantTheme}
           onEdit={() => setSubmitted(false)}
         />
       </>

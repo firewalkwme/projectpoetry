@@ -1,23 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FloatingWord } from "./FloatingWord";
+import { WordSwarm, type SwarmWord } from "./WordSwarm";
 import { getThreadColor } from "../lib/particlePresets";
-import { hashString } from "../lib/hash";
-import { isThemeWord, type Theme } from "../lib/themes";
+import { countWordFrequencies, normalizeWord } from "../lib/wordFrequency";
 import type { Mood } from "../lib/moods";
 
 type Props = {
   poem: string;
   mood: Mood;
-  dominantTheme: Theme;
   onEdit: () => void;
 };
 
-export function DeconstructedPoem({ poem, mood, dominantTheme, onEdit }: Props) {
-  const words = useMemo(
-    () => poem.split(/\s+/).map((w) => w.trim()).filter(Boolean),
-    [poem]
-  );
+export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
   const threadColor = getThreadColor(mood);
+
+  const swarmWords: SwarmWord[] = useMemo(() => {
+    const rawWords = poem.split(/\s+/).map((w) => w.trim()).filter(Boolean);
+    const frequencies = countWordFrequencies(poem);
+    const maxCount = Math.max(...Array.from(frequencies.values()), 1);
+
+    return rawWords.map((text) => {
+      const count = frequencies.get(normalizeWord(text)) ?? 1;
+      // repetition is this poem's own emphasis signal: a word repeated
+      // many times renders larger, scaling with how dominant it is
+      // relative to the most-repeated word in this specific poem
+      const repetitionBoost = 1 + (Math.log2(count) / Math.log2(maxCount + 1)) * 0.9;
+      const hash = text.length + text.charCodeAt(0);
+      const jitter = 0.95 + (hash % 6) * 0.05;
+      return { text, fontScale: jitter * repetitionBoost };
+    });
+  }, [poem]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 500 });
@@ -61,26 +72,13 @@ export function DeconstructedPoem({ poem, mood, dominantTheme, onEdit }: Props) 
         ref={containerRef}
         style={{ position: "relative", height: "80vh", overflow: "hidden" }}
       >
-        {words.map((word, i) => {
-          const id = `word-${i}-${word}`;
-          const hash = hashString(id);
-          const baseX = (hash % Math.max(size.width - 80, 1)) + 20;
-          const baseY = ((hash >> 5) % Math.max(size.height - 60, 1)) + 20;
-          const emphasized = isThemeWord(word, dominantTheme);
-          return (
-            <FloatingWord
-              key={id}
-              text={word}
-              mood={mood}
-              color={threadColor}
-              containerWidth={size.width}
-              containerHeight={size.height}
-              baseX={baseX}
-              baseY={baseY}
-              emphasized={emphasized}
-            />
-          );
-        })}
+        <WordSwarm
+          words={swarmWords}
+          mood={mood}
+          color={threadColor}
+          containerWidth={size.width}
+          containerHeight={size.height}
+        />
       </div>
     </div>
   );

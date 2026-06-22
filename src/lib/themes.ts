@@ -81,7 +81,6 @@ export type PoemStats = {
 
 export type PoemAnalysis = {
   themeScores: Record<Theme, number>;
-  dominantTheme: Theme;
   stats: PoemStats;
 };
 
@@ -105,20 +104,10 @@ export function analyzePoem(poem: string): PoemAnalysis {
     }
   }
 
-  let dominantTheme: Theme = "earth";
-  let topScore = -1;
-  for (const theme of Object.keys(themeScores) as Theme[]) {
-    if (themeScores[theme] > topScore) {
-      topScore = themeScores[theme];
-      dominantTheme = theme;
-    }
-  }
-
   const totalLength = words.reduce((sum, w) => sum + w.length, 0);
 
   return {
     themeScores,
-    dominantTheme,
     stats: {
       wordCount: words.length,
       avgWordLength: words.length > 0 ? totalLength / words.length : 0,
@@ -127,9 +116,4 @@ export function analyzePoem(poem: string): PoemAnalysis {
       lineCount: Math.max(lines.length, 1),
     },
   };
-}
-
-export function isThemeWord(word: string, theme: Theme): boolean {
-  const clean = word.toLowerCase().replace(/[^a-z']/g, "");
-  return THEME_LEXICON[theme].includes(clean);
 }

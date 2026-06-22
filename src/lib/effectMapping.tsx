@@ -5,7 +5,6 @@ import { topThemeColors } from "./themeColors";
 
 export type EffectResult = {
   Component: () => React.JSX.Element;
-  dominantTheme: Theme;
 };
 
 function sumThemes(scores: Record<Theme, number>, themes: Theme[]): number {
@@ -57,5 +56,5 @@ export function resolveEffect(poem: string): EffectResult {
     );
   }
 
-  return { Component, dominantTheme: analysis.dominantTheme };
+  return { Component };
 }
