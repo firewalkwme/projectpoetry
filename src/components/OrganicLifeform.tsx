@@ -27,7 +27,7 @@ function lerpColor(a: [number, number, number], b: [number, number, number], t: 
   return `rgb(${a[0] + (b[0] - a[0]) * t}, ${a[1] + (b[1] - a[1]) * t}, ${a[2] + (b[2] - a[2]) * t})`;
 }
 
-function buildRoot(spec: LifeformSpec, rng: () => number): Node {
+function buildRoot(spec: LifeformSpec, rng: () => number, rootLength: number): Node {
   function grow(depth: number, length: number, thickness: number): Node {
     const isTip = depth >= spec.depth || length < 5;
     const node: Node = {
@@ -58,7 +58,7 @@ function buildRoot(spec: LifeformSpec, rng: () => number): Node {
     return node;
   }
 
-  return grow(0, 0, spec.thickness);
+  return grow(0, rootLength, spec.thickness);
 }
 
 export function OrganicLifeform({ spec }: Props) {
@@ -85,7 +85,7 @@ export function OrganicLifeform({ spec }: Props) {
         width * (0.12 + 0.76 * (spec.rootCount > 1 ? r / (spec.rootCount - 1) : 0.5));
       const startAngle = -Math.PI / 2 + (rng() - 0.5) * 0.5;
       const rootLength = height * (0.18 + rng() * 0.08);
-      roots.push({ node: buildRoot(spec, rng), startX, startAngle, rootLength });
+      roots.push({ node: buildRoot(spec, rng, rootLength), startX, startAngle, rootLength });
     }
 
     const colorA = hexToRgb(spec.palette[0]);
