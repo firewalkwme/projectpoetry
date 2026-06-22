@@ -1,0 +1,52 @@
+export const plasmaFragmentShader = `
+  uniform float uTime;
+  uniform vec2 uResolution;
+  uniform vec3 uTint;
+
+  vec2 hash(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+  }
+
+  float noise(vec2 p) {
+    const float K1 = 0.366025404;
+    const float K2 = 0.211324865;
+    vec2 i = floor(p + (p.x + p.y) * K1);
+    vec2 a = p - i + (i.x + i.y) * K2;
+    vec2 o = step(a.yx, a.xy);
+    vec2 b = a - o + K2;
+    vec2 c = a - 1.0 + 2.0 * K2;
+    vec3 h = max(0.5 - vec3(dot(a, a), dot(b, b), dot(c, c)), 0.0);
+    vec3 n = h * h * h * h * vec3(
+      dot(a, hash(i + 0.0)),
+      dot(b, hash(i + o)),
+      dot(c, hash(i + 1.0))
+    );
+    return dot(n, vec3(70.0));
+  }
+
+  float fbm(vec2 p) {
+    float total = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 5; i++) {
+      total += noise(p) * amp;
+      p *= 2.02;
+      amp *= 0.5;
+    }
+    return total;
+  }
+
+  void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
+    float t = uTime * 0.15;
+    float n1 = fbm(uv * 2.2 + vec2(t, -t * 0.7));
+    float n2 = fbm(uv * 3.1 - vec2(-t * 0.5, t));
+    float blend = 0.5 + 0.5 * sin(n1 * 3.0 + n2 * 2.0 + uTime * 0.3);
+
+    vec3 base = mix(vec3(0.02, 0.02, 0.05), uTint, 0.65);
+    vec3 color = mix(base * 0.3, uTint, blend);
+    color += 0.08 * fbm(uv * 6.0 + t * 2.0);
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
