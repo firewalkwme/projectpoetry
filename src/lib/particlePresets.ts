@@ -103,3 +103,10 @@ const PRESETS: Record<Mood, Preset> = {
 export function getPreset(mood: Mood): Preset {
   return PRESETS[mood];
 }
+
+export function getThreadColor(mood: Mood): string {
+  const value = (PRESETS[mood].options.particles?.color as { value?: unknown })
+    ?.value;
+  if (Array.isArray(value)) return value[0] as string;
+  return "#888";
+}

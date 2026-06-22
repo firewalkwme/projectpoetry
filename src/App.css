@@ -1,0 +1,17 @@
+@keyframes sway {
+  0% {
+    transform: rotate(calc(var(--base-tilt, 0deg) - 4deg));
+  }
+  50% {
+    transform: rotate(calc(var(--base-tilt, 0deg) + 4deg));
+  }
+  100% {
+    transform: rotate(calc(var(--base-tilt, 0deg) - 4deg));
+  }
+}
+
+.hanging-sway {
+  animation-name: sway;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}

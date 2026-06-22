@@ -5,13 +5,15 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   mood: Mood;
+  onSubmit: () => void;
 };
 
-export function PoemInput({ value, onChange, mood }: Props) {
+export function PoemInput({ value, onChange, mood, onSubmit }: Props) {
   const [draft, setDraft] = useState(value);
 
   const handleSubmit = () => {
     onChange(draft);
+    onSubmit();
   };
 
   return (
