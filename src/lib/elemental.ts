@@ -32,11 +32,19 @@ export type ElementalKindConfig = {
 };
 
 export const ELEMENTAL_KIND_CONFIG: Record<ElementalKind, ElementalKindConfig> = {
-  rain: { gravityX: 25, gravityY: 420, jitter: 8, baseCount: 160, sizeMin: 8, sizeMax: 18, shape: "line", glow: false },
-  embers: { gravityX: 0, gravityY: -45, jitter: 22, baseCount: 70, sizeMin: 1.5, sizeMax: 3.2, shape: "circle", glow: true },
-  leaves: { gravityX: 18, gravityY: 55, jitter: 30, baseCount: 36, sizeMin: 5, sizeMax: 9, shape: "leaf", glow: false },
-  motes: { gravityX: 0, gravityY: -10, jitter: 16, baseCount: 50, sizeMin: 1.5, sizeMax: 3, shape: "circle", glow: true },
-  smoke: { gravityX: 6, gravityY: -22, jitter: 8, baseCount: 22, sizeMin: 30, sizeMax: 60, shape: "blob", glow: false },
+  rain: { gravityX: 30, gravityY: 480, jitter: 10, baseCount: 220, sizeMin: 14, sizeMax: 30, shape: "line", glow: false },
+  embers: { gravityX: 0, gravityY: -50, jitter: 26, baseCount: 90, sizeMin: 2.5, sizeMax: 5.5, shape: "circle", glow: true },
+  leaves: { gravityX: 22, gravityY: 65, jitter: 35, baseCount: 48, sizeMin: 10, sizeMax: 18, shape: "leaf", glow: false },
+  motes: { gravityX: 0, gravityY: -12, jitter: 18, baseCount: 70, sizeMin: 2.5, sizeMax: 5, shape: "circle", glow: true },
+  smoke: { gravityX: 8, gravityY: -26, jitter: 10, baseCount: 30, sizeMin: 45, sizeMax: 85, shape: "blob", glow: false },
+};
+
+export const ELEMENTAL_LABEL: Record<ElementalKind, string> = {
+  rain: "rain",
+  embers: "embers",
+  leaves: "falling leaves",
+  motes: "drifting light",
+  smoke: "smoke",
 };
 
 function clamp(v: number, min: number, max: number): number {
@@ -60,7 +68,7 @@ export function resolveElemental(poem: string): ElementalSpec {
   }
 
   const total = Object.values(themeScores).reduce((a, b) => a + b, 0) || 1;
-  const intensity = clamp(topScore / Math.max(total * 0.35, 1), 0.18, 1);
+  const intensity = clamp(topScore / Math.max(total * 0.35, 1), 0.4, 1);
   const speed = clamp(0.6 + stats.punctuationDensity * 1.2, 0.5, 2);
   const palette = topThemeColors(themeScores, 3) as [string, string, string];
 

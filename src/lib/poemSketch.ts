@@ -36,6 +36,30 @@ type Particle = {
   rotation: number;
 };
 
+type Burst = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  size: number;
+  color: number;
+};
+
+type Ripple = {
+  x: number;
+  y: number;
+  life: number;
+};
+
+type Star = {
+  x: number;
+  y: number;
+  z: number;
+  r: number;
+  phase: number;
+};
+
 const NEIGHBOR_RADIUS = 170;
 const ALIGNMENT_STRENGTH = 1.1;
 const COHESION_STRENGTH = 0.35;
@@ -64,6 +88,9 @@ export function createPoemSketch(opts: PoemSketchOptions) {
     let blobs: { x: number; y: number; r: number; col: p5.Color; phase: number; speed: number }[] = [];
     let boids: WordBoid[] = [];
     let particles: Particle[] = [];
+    let bursts: Burst[] = [];
+    let ripples: Ripple[] = [];
+    let stars: Star[] = [];
 
     let dragIndex = -1;
     let dragOffsetX = 0;
@@ -73,6 +100,15 @@ export function createPoemSketch(opts: PoemSketchOptions) {
     let moved = false;
     let boost = 0;
     let lastFrameMs = 0;
+
+    function vividColor(hex: string): p5.Color {
+      const base = p.color(hex);
+      p.colorMode(p.HSB, 360, 100, 100, 255);
+      const h = p.hue(base);
+      const vivid = p.color(h, Math.min(p.saturation(base) * 1.4 + 25, 100), Math.min(p.brightness(base) * 1.3 + 20, 100));
+      p.colorMode(p.RGB, 255);
+      return vivid;
+    }
 
     function spawnParticle(): Particle {
       return {
@@ -95,14 +131,22 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       p.textFont("Georgia, serif");
       p.noStroke();
 
-      colors = opts.elemental.palette.map((hex) => p.color(hex));
-      blobs = Array.from({ length: 4 }, () => ({
+      colors = opts.elemental.palette.map(vividColor);
+      blobs = Array.from({ length: 5 }, () => ({
         x: p.random(width),
         y: p.random(height),
-        r: height * p.random(0.3, 0.65),
+        r: height * p.random(0.35, 0.75),
         col: colors[Math.floor(p.random(colors.length))],
         phase: p.random(p.TWO_PI),
         speed: p.random(0.02, 0.05),
+      }));
+
+      stars = Array.from({ length: 200 }, () => ({
+        x: p.random(width),
+        y: p.random(height),
+        z: p.random(0.3, 1),
+        r: p.random(0.6, 1.8),
+        phase: p.random(p.TWO_PI),
       }));
 
       particles = Array.from(
@@ -202,11 +246,28 @@ export function createPoemSketch(opts: PoemSketchOptions) {
         }
         b.dragging = false;
       } else if (!moved) {
-        // empty-space click: intensify the elemental layer, like clicking
-        // on rain to make it pour harder
+        // empty-space click: intensify the elemental layer (like clicking
+        // on rain to make it pour harder) and fire a visible shockwave so
+        // the interaction is unmistakable, not just a subtle density bump
         boost = Math.min(boost + 1, 3);
         const target = Math.round(config.baseCount * opts.elemental.intensity * (1 + boost * 0.6));
         while (particles.length < target) particles.push(spawnParticle());
+
+        ripples.push({ x: p.mouseX, y: p.mouseY, life: 1 });
+        const burstCount = 36;
+        for (let i = 0; i < burstCount; i++) {
+          const a = (i / burstCount) * p.TWO_PI + p.random(-0.1, 0.1);
+          const speed = p.random(120, 320);
+          bursts.push({
+            x: p.mouseX,
+            y: p.mouseY,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed,
+            life: 1,
+            size: p.random(2, 5),
+            color: Math.floor(p.random(colors.length)),
+          });
+        }
       }
       dragIndex = -1;
     };
@@ -220,21 +281,41 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       boost = Math.max(0, boost - dt * 0.25);
       const speedMul = opts.elemental.speed * (1 + boost * 0.8);
 
-      p.background(7, 9, 11);
+      // deep space backdrop, darkest at the edges
+      const sky = p.drawingContext as CanvasRenderingContext2D;
+      const grad = sky.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.75);
+      grad.addColorStop(0, "#0c0a18");
+      grad.addColorStop(1, "#020103");
+      sky.fillStyle = grad;
+      sky.fillRect(0, 0, width, height);
 
+      p.blendMode(p.ADD);
+      p.noStroke();
+      for (const star of stars) {
+        const twinkle = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 1.2 * star.z + star.phase));
+        p.fill(255, 255, 250, twinkle * 200 * star.z);
+        p.circle(star.x, star.y, star.r * (1 + star.z));
+      }
+
+      // nebula clouds -- additive blending lets overlapping colors glow
+      // into each other instead of just stacking flat translucent fills
       for (const b of blobs) {
-        const bx = b.x + Math.sin(t * b.speed + b.phase) * 60;
-        const by = b.y + Math.cos(t * b.speed * 0.8 + b.phase) * 40;
-        p.noStroke();
-        for (let r = b.r; r > 0; r -= b.r / 8) {
-          const alpha = 10 * (1 - r / b.r);
+        const bx = b.x + Math.sin(t * b.speed + b.phase) * 80;
+        const by = b.y + Math.cos(t * b.speed * 0.8 + b.phase) * 55;
+        for (let r = b.r; r > 0; r -= b.r / 10) {
+          const alpha = 9 * (1 - r / b.r);
           p.fill(p.red(b.col), p.green(b.col), p.blue(b.col), alpha);
           p.circle(bx, by, r * 2);
         }
       }
+      p.blendMode(p.BLEND);
 
       // elemental particles -- deflected slightly by nearby words so the
-      // two systems visibly interact instead of sitting in separate layers
+      // two systems visibly interact instead of sitting in separate layers.
+      // additive blending gives every particle a soft bloom regardless of
+      // kind, which is what makes this read as otherworldly light rather
+      // than flat painted shapes
+      p.blendMode(p.ADD);
       for (let i = 0; i < particles.length; i++) {
         const particle = particles[i];
         const lifeRatio = particle.life / particle.maxLife;
@@ -260,35 +341,31 @@ export function createPoemSketch(opts: PoemSketchOptions) {
         particle.rotation += 0.01 * speedMul;
         particle.life += speedMul;
 
+        // every kind gets a soft bloom halo first, then its own shape
+        // drawn brighter on top
+        for (let r = particle.size * 3.5; r > 0; r -= particle.size * 0.7) {
+          const a = 0.45 * fade * 255 * (1 - r / (particle.size * 3.5));
+          p.fill(p.red(color), p.green(color), p.blue(color), a);
+          p.circle(particle.x, particle.y, r * 2);
+        }
+
         if (config.shape === "line") {
-          p.stroke(p.red(color), p.green(color), p.blue(color), 130 * fade);
-          p.strokeWeight(1.2);
+          p.stroke(p.red(color), p.green(color), p.blue(color), 200 * fade);
+          p.strokeWeight(2);
           p.line(particle.x, particle.y, particle.x - config.gravityX * 0.03, particle.y - particle.size);
           p.noStroke();
         } else if (config.shape === "leaf") {
           p.push();
           p.translate(particle.x, particle.y);
           p.rotate(particle.rotation);
-          p.fill(p.red(color), p.green(color), p.blue(color), 140 * fade);
+          p.fill(p.red(color), p.green(color), p.blue(color), 200 * fade);
           p.ellipse(0, 0, particle.size * 2, particle.size * 0.9);
           p.pop();
         } else if (config.shape === "blob") {
-          p.noStroke();
-          for (let r = particle.size; r > 0; r -= particle.size / 4) {
-            const a = 0.12 * fade * 255 * (1 - r / particle.size);
-            p.fill(p.red(color), p.green(color), p.blue(color), a);
-            p.circle(particle.x, particle.y, r * 2);
-          }
+          // already fully expressed by the bloom halo above
         } else {
-          if (config.glow) {
-            for (let r = particle.size * 4; r > 0; r -= particle.size) {
-              const a = 0.5 * fade * 255 * (1 - r / (particle.size * 4));
-              p.fill(p.red(color), p.green(color), p.blue(color), a);
-              p.circle(particle.x, particle.y, r * 2);
-            }
-          }
-          p.fill(p.red(color), p.green(color), p.blue(color), 0.85 * fade * 255);
-          p.circle(particle.x, particle.y, particle.size * 2);
+          p.fill(p.red(color), p.green(color), p.blue(color), 0.95 * fade * 255);
+          p.circle(particle.x, particle.y, particle.size * 1.4);
         }
 
         if (
@@ -301,8 +378,43 @@ export function createPoemSketch(opts: PoemSketchOptions) {
           particles[i] = spawnParticle();
         }
       }
+      p.blendMode(p.BLEND);
       const baseline = Math.round(config.baseCount * opts.elemental.intensity);
       if (particles.length > baseline && boost <= 0.01) particles.length = baseline;
+
+      // click shockwave: a burst of bright sparks flying outward plus an
+      // expanding ring, so a click has an unmistakable visible effect
+      p.blendMode(p.ADD);
+      for (let i = bursts.length - 1; i >= 0; i--) {
+        const burst = bursts[i];
+        burst.life -= dt * 1.4;
+        if (burst.life <= 0) {
+          bursts.splice(i, 1);
+          continue;
+        }
+        burst.x += burst.vx * dt;
+        burst.y += burst.vy * dt;
+        burst.vx *= 1 - dt * 1.5;
+        burst.vy *= 1 - dt * 1.5;
+        const color = colors[burst.color];
+        p.fill(p.red(color), p.green(color), p.blue(color), burst.life * 255);
+        p.circle(burst.x, burst.y, burst.size * (0.5 + burst.life));
+      }
+      p.blendMode(p.BLEND);
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const ripple = ripples[i];
+        ripple.life -= dt * 1.1;
+        if (ripple.life <= 0) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        p.noFill();
+        p.stroke(255, 255, 245, ripple.life * 160);
+        p.strokeWeight(2);
+        p.circle(ripple.x, ripple.y, (1 - ripple.life) * 360);
+        p.noStroke();
+      }
 
       // word flocking: per-boid mood physics, then a shared neighbor pass
       // for separation + alignment + cohesion (the actual "school" behavior)
