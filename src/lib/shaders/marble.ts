@@ -2,6 +2,9 @@ export const marbleFragmentShader = `
   uniform float uTime;
   uniform vec2 uResolution;
   uniform vec3 uTint;
+  uniform float uSpeed;
+  uniform float uScale;
+  uniform float uTurbulence;
 
   vec2 hash(vec2 p) {
     p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -38,15 +41,15 @@ export const marbleFragmentShader = `
   }
 
   void main() {
-    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
-    float t = uTime * 0.08;
+    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y) * uScale;
+    float t = uTime * 0.08 * uSpeed;
 
     // shear/advect the coordinate along a flowing direction before
     // computing veins, so the marbling streaks rather than sits static
     vec2 flow = vec2(
       noise(uv * 0.8 + t),
       noise(uv * 0.8 - t * 0.7 + 4.0)
-    );
+    ) * uTurbulence;
     vec2 sheared = uv + vec2(uv.y, -uv.x) * 0.15 * sin(t * 2.0) + flow * 0.5;
 
     float vein = veins(sheared * 2.6 + flow * 1.5);

@@ -2,6 +2,9 @@ export const plasmaFragmentShader = `
   uniform float uTime;
   uniform vec2 uResolution;
   uniform vec3 uTint;
+  uniform float uSpeed;
+  uniform float uScale;
+  uniform float uTurbulence;
 
   vec2 hash(vec2 p) {
     p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -57,12 +60,12 @@ export const plasmaFragmentShader = `
   }
 
   void main() {
-    vec2 raw = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
-    float t = uTime * 0.1;
+    vec2 raw = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y) * uScale;
+    float t = uTime * 0.1 * uSpeed;
 
     // curl-like pre-pass: rotate the coordinate locally by an angle drawn
     // from noise, so the whole field swirls rather than just drifting
-    float curlAngle = (noise(raw * 1.1 + t * 0.3) - 0.5) * 1.8;
+    float curlAngle = (noise(raw * 1.1 + t * 0.3) - 0.5) * 1.8 * uTurbulence;
     vec2 uv = rotate(raw, curlAngle * 0.4);
 
     // domain warping: distort the sampling coordinate through layers of
@@ -70,11 +73,11 @@ export const plasmaFragmentShader = `
     vec2 q = vec2(
       fbm(uv * 1.6 + vec2(0.0, 0.0) + t),
       fbm(uv * 1.6 + vec2(5.2, 1.3) - t * 0.8)
-    );
+    ) * uTurbulence;
     vec2 r = vec2(
       fbm(uv * 1.6 + 3.2 * q + vec2(1.7, 9.2) + t * 0.6),
       fbm(uv * 1.6 + 3.2 * q + vec2(8.3, 2.8) - t * 0.4)
-    );
+    ) * uTurbulence;
     float n = fbm(uv * 1.6 + 3.6 * r);
     float ridge = ridgedFbm(uv * 2.4 + 2.0 * r - t * 0.5);
 

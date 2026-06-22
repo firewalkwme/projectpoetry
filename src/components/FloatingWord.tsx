@@ -12,6 +12,7 @@ type Props = {
   containerHeight: number;
   baseX: number;
   baseY: number;
+  emphasized?: boolean;
 };
 
 export function FloatingWord({
@@ -22,9 +23,10 @@ export function FloatingWord({
   containerHeight,
   baseX,
   baseY,
+  emphasized = false,
 }: Props) {
   const hash = hashString(text + mood);
-  const fontScale = 0.95 + (hash % 6) * 0.06;
+  const fontScale = (0.95 + (hash % 6) * 0.06) * (emphasized ? 1.5 : 1);
 
   const elRef = useRef<HTMLDivElement>(null);
   const pos = useRef({ x: baseX, y: baseY });
@@ -147,7 +149,10 @@ export function FloatingWord({
     color,
     fontFamily: "Georgia, serif",
     fontSize: `${fontScale}rem`,
-    textShadow: "0 1px 6px rgba(0,0,0,0.5)",
+    fontWeight: emphasized ? 700 : 400,
+    textShadow: emphasized
+      ? `0 0 16px ${color}, 0 1px 6px rgba(0,0,0,0.5)`
+      : "0 1px 6px rgba(0,0,0,0.5)",
     whiteSpace: "nowrap",
     userSelect: "none",
     cursor: "grab",

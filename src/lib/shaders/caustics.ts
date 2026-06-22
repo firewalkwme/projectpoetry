@@ -2,6 +2,9 @@ export const causticsFragmentShader = `
   uniform float uTime;
   uniform vec2 uResolution;
   uniform vec3 uTint;
+  uniform float uSpeed;
+  uniform float uScale;
+  uniform float uTurbulence;
 
   // classic light-caustic look: repeatedly fold the coordinate through a
   // rotation + sine pass and accumulate brightness near the folds. each
@@ -27,11 +30,11 @@ export const causticsFragmentShader = `
   }
 
   void main() {
-    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
-    float t = uTime * 0.35;
+    vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y) * uScale;
+    float t = uTime * 0.35 * uSpeed;
 
     float c1 = caustic(uv * 1.4, t);
-    float c2 = caustic(uv * 1.4 + 1.7, t * 1.3 + 2.0);
+    float c2 = caustic(uv * 1.4 + 1.7 * uTurbulence, t * 1.3 + 2.0);
     float light = clamp(c1 * 0.6 + c2 * 0.5, 0.0, 1.6);
 
     vec3 deep = mix(vec3(0.0, 0.02, 0.05), uTint * 0.25, 0.5);

@@ -2,6 +2,9 @@ export const voronoiFragmentShader = `
   uniform float uTime;
   uniform vec2 uResolution;
   uniform vec3 uTint;
+  uniform float uSpeed;
+  uniform float uScale;
+  uniform float uTurbulence;
 
   vec2 hash2(vec2 p) {
     p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -25,14 +28,15 @@ export const voronoiFragmentShader = `
 
   void main() {
     vec2 raw = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
+    float t = uTime * uSpeed;
 
     // ripple the sampling plane itself so the cell lattice never sits
     // on a perfectly straight grid
     vec2 warp = vec2(
-      valueNoise(raw * 1.4 + uTime * 0.05),
-      valueNoise(raw * 1.4 + 7.0 - uTime * 0.04)
+      valueNoise(raw * 1.4 + t * 0.05),
+      valueNoise(raw * 1.4 + 7.0 - t * 0.04)
     );
-    vec2 uv = (raw + (warp - 0.5) * 0.6) * 3.6;
+    vec2 uv = (raw + (warp - 0.5) * 0.6 * uTurbulence) * 3.6 * uScale;
 
     vec2 cell = floor(uv);
     vec2 local = fract(uv);
@@ -48,8 +52,8 @@ export const voronoiFragmentShader = `
 
         // each point orbits its rest position instead of oscillating
         // along a fixed axis, so motion reads as swirling, not jittering
-        float orbitAngle = uTime * (0.2 + base.x * 0.3) + base.y * 6.2831;
-        float orbitRadius = 0.22 + 0.1 * hash1(cell + offset + 3.7);
+        float orbitAngle = t * (0.2 + base.x * 0.3) + base.y * 6.2831;
+        float orbitRadius = (0.22 + 0.1 * hash1(cell + offset + 3.7)) * uTurbulence;
         vec2 wobble = vec2(cos(orbitAngle), sin(orbitAngle)) * orbitRadius;
         vec2 point = base + wobble;
         float dist = length(local - offset - point);

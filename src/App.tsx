@@ -5,7 +5,7 @@ import { PoemInput } from "./components/PoemInput";
 import { DeconstructedPoem } from "./components/DeconstructedPoem";
 import { detectMood } from "./lib/moods";
 import { getThreadColor } from "./lib/particlePresets";
-import { pickBackgroundEffect } from "./lib/backgroundEffects";
+import { resolveEffect } from "./lib/effectMapping";
 
 function App() {
   const [poem, setPoem] = useState("");
@@ -13,7 +13,7 @@ function App() {
   const mood = useMemo(() => detectMood(poem), [poem]);
 
   if (submitted && poem.trim()) {
-    const Background = pickBackgroundEffect(poem);
+    const { Component: Background, dominantTheme } = resolveEffect(poem);
     return (
       <>
         <Background tint={getThreadColor(mood)} />
@@ -21,6 +21,7 @@ function App() {
         <DeconstructedPoem
           poem={poem}
           mood={mood}
+          dominantTheme={dominantTheme}
           onEdit={() => setSubmitted(false)}
         />
       </>

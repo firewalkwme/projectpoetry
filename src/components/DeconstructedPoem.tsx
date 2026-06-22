@@ -2,15 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FloatingWord } from "./FloatingWord";
 import { getThreadColor } from "../lib/particlePresets";
 import { hashString } from "../lib/hash";
+import { isThemeWord, type Theme } from "../lib/themes";
 import type { Mood } from "../lib/moods";
 
 type Props = {
   poem: string;
   mood: Mood;
+  dominantTheme: Theme;
   onEdit: () => void;
 };
 
-export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
+export function DeconstructedPoem({ poem, mood, dominantTheme, onEdit }: Props) {
   const words = useMemo(
     () => poem.split(/\s+/).map((w) => w.trim()).filter(Boolean),
     [poem]
@@ -64,6 +66,7 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
           const hash = hashString(id);
           const baseX = (hash % Math.max(size.width - 80, 1)) + 20;
           const baseY = ((hash >> 5) % Math.max(size.height - 60, 1)) + 20;
+          const emphasized = isThemeWord(word, dominantTheme);
           return (
             <FloatingWord
               key={id}
@@ -74,6 +77,7 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
               containerHeight={size.height}
               baseX={baseX}
               baseY={baseY}
+              emphasized={emphasized}
             />
           );
         })}
