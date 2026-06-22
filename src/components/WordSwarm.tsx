@@ -22,6 +22,9 @@ const FLEE_BURST = 320;
 const FLEE_ACCEL = 900;
 const REPEL_STRENGTH = 1400;
 const REPEL_PADDING = 6;
+const NEIGHBOR_RADIUS = 170;
+const ALIGNMENT_STRENGTH = 1.1;
+const COHESION_STRENGTH = 0.35;
 
 type WordState = {
   x: number;
@@ -135,18 +138,39 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
         }
       }
 
-      // pairwise box-overlap repulsion so words never sit on top of each
-      // other; soft acceleration push rather than a rigid position snap,
-      // so it still reads as organic motion rather than a rules engine.
-      // force is capped per pair so a deep initial overlap can't produce
-      // a single violent jolt -- it eases apart over a few frames instead
+      // single neighbor pass: box-overlap separation (so words never sit
+      // on top of each other) plus alignment + cohesion sums, which is
+      // what turns this from independent floaters into one coordinated
+      // school -- each word nudges toward the average heading and
+      // position of whoever is near it, like fish in a shoal
       const MAX_PUSH = 70;
+      const alignVX = new Float64Array(states.length);
+      const alignVY = new Float64Array(states.length);
+      const cohX = new Float64Array(states.length);
+      const cohY = new Float64Array(states.length);
+      const neighborCount = new Int32Array(states.length);
+
       for (let i = 0; i < states.length; i++) {
         for (let j = i + 1; j < states.length; j++) {
           const a = states[i];
           const b = states[j];
           const dx = b.x - a.x;
           const dy = b.y - a.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < NEIGHBOR_RADIUS) {
+            alignVX[i] += b.vx;
+            alignVY[i] += b.vy;
+            cohX[i] += b.x;
+            cohY[i] += b.y;
+            neighborCount[i]++;
+            alignVX[j] += a.vx;
+            alignVY[j] += a.vy;
+            cohX[j] += a.x;
+            cohY[j] += a.y;
+            neighborCount[j]++;
+          }
+
           const overlapX = a.halfW + b.halfW - Math.abs(dx);
           const overlapY = a.halfH + b.halfH - Math.abs(dy);
           if (overlapX > 0 && overlapY > 0) {
@@ -164,6 +188,20 @@ export function WordSwarm({ words, mood, color, containerWidth, containerHeight 
             }
           }
         }
+      }
+
+      for (let i = 0; i < states.length; i++) {
+        const s = states[i];
+        if (s.dragging || s.flee.active || neighborCount[i] === 0) continue;
+        const n = neighborCount[i];
+        const targetVX = alignVX[i] / n;
+        const targetVY = alignVY[i] / n;
+        const centerX = cohX[i] / n;
+        const centerY = cohY[i] / n;
+        s.vx += (targetVX - s.vx) * ALIGNMENT_STRENGTH * dt;
+        s.vy += (targetVY - s.vy) * ALIGNMENT_STRENGTH * dt;
+        s.vx += (centerX - s.x) * COHESION_STRENGTH * dt;
+        s.vy += (centerY - s.y) * COHESION_STRENGTH * dt;
       }
 
       // final speed clamp, applied after physics + repulsion, so a

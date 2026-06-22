@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import "./App.css";
 import { FlowFieldBackground } from "./components/FlowFieldBackground";
-import { Flock } from "./components/Flock";
+import { NatureBackground } from "./components/NatureBackground";
 import { PoemInput } from "./components/PoemInput";
 import { DeconstructedPoem } from "./components/DeconstructedPoem";
 import { detectMood } from "./lib/moods";
 import { getThreadColor } from "./lib/particlePresets";
-import { buildFlockSpec } from "./lib/flock";
+import { resolveElemental } from "./lib/elemental";
 
 function App() {
   const [poem, setPoem] = useState("");
@@ -14,10 +14,10 @@ function App() {
   const mood = useMemo(() => detectMood(poem), [poem]);
 
   if (submitted && poem.trim()) {
-    const spec = buildFlockSpec(poem);
+    const spec = resolveElemental(poem);
     return (
       <>
-        <Flock spec={spec} />
+        <NatureBackground spec={spec} />
         <DeconstructedPoem
           poem={poem}
           mood={mood}
