@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PoemCanvas } from "./PoemCanvas";
 import { getThreadColor } from "../lib/particlePresets";
 import { countWordFrequencies, normalizeWord } from "../lib/wordFrequency";
-import { resolveElemental } from "../lib/elemental";
+import { createPoemAudio } from "../lib/poemAudio";
 import type { SceneWord } from "../lib/poemSketch";
 import type { Mood } from "../lib/moods";
 
@@ -14,7 +14,13 @@ type Props = {
 
 export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
   const threadColor = getThreadColor(mood);
-  const elemental = useMemo(() => resolveElemental(poem), [poem]);
+  const [soundOn, setSoundOn] = useState(false);
+  const audioRef = useRef(createPoemAudio(poem));
+
+  useEffect(() => {
+    audioRef.current = createPoemAudio(poem);
+    return () => audioRef.current.stop();
+  }, [poem]);
 
   const sceneWords: SceneWord[] = useMemo(() => {
     const rawWords = poem.split(/\s+/).map((w) => w.trim()).filter(Boolean);
@@ -33,10 +39,20 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
     });
   }, [poem]);
 
+  const toggleSound = () => {
+    if (soundOn) {
+      audioRef.current.stop();
+      setSoundOn(false);
+    } else {
+      audioRef.current.start();
+      setSoundOn(true);
+    }
+  };
+
   return (
     <>
-      <PoemCanvas words={sceneWords} mood={mood} color={threadColor} elemental={elemental} />
-      <div style={{ position: "relative", textAlign: "center", padding: "2rem 1rem" }}>
+      <PoemCanvas words={sceneWords} color={threadColor} onRain={() => audioRef.current.triggerRainBurst()} />
+      <div style={{ position: "relative", textAlign: "center", padding: "2rem 1rem", display: "flex", gap: "0.75rem", justifyContent: "center" }}>
         <button
           onClick={onEdit}
           style={{
@@ -50,6 +66,20 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
           }}
         >
           ← edit poem
+        </button>
+        <button
+          onClick={toggleSound}
+          style={{
+            fontFamily: "Georgia, serif",
+            fontSize: "0.9rem",
+            padding: "0.4rem 1rem",
+            borderRadius: 8,
+            border: "1px solid #888",
+            background: soundOn ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.85)",
+            cursor: "pointer",
+          }}
+        >
+          {soundOn ? "🔊 sound on" : "🔈 sound off"}
         </button>
       </div>
     </>
