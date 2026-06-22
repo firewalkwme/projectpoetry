@@ -15,6 +15,11 @@ type Props = {
   emphasized?: boolean;
 };
 
+const DRAG_THRESHOLD = 4;
+const FLEE_DURATION = 0.6;
+const FLEE_BURST = 320;
+const FLEE_ACCEL = 900;
+
 export function FloatingWord({
   text,
   mood,
@@ -34,7 +39,10 @@ export function FloatingWord({
   const lastTime = useRef<number | null>(null);
   const [paused, setPaused] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
+  const dragStart = useRef({ x: 0, y: 0 });
+  const moved = useRef(false);
   const [dragging, setDragging] = useState(false);
+  const fleeing = useRef({ active: false, dirX: 0, dirY: 0, timeLeft: 0 });
 
   useEffect(() => {
     let raf: number;
@@ -58,23 +66,32 @@ export function FloatingWord({
       const el = elRef.current;
       const v = vel.current!;
 
-      if (el && !paused && !dragging) {
-        const turbAngle = (Math.random() - 0.5) * physics.turbulence * dt;
-        const cos = Math.cos(turbAngle);
-        const sin = Math.sin(turbAngle);
-        const nvx = v.x * cos - v.y * sin;
-        const nvy = v.x * sin + v.y * cos;
-        v.x = nvx;
-        v.y = nvy + physics.biasY * dt;
+      const flee = fleeing.current;
+      if (el && !dragging && (!paused || flee.active)) {
 
-        if (Math.random() < physics.dartChance) {
-          const dartAngle = Math.random() * Math.PI * 2;
-          v.x += Math.cos(dartAngle) * physics.dartStrength * dt;
-          v.y += Math.sin(dartAngle) * physics.dartStrength * dt;
+        if (flee.active) {
+          v.x += flee.dirX * FLEE_ACCEL * dt;
+          v.y += flee.dirY * FLEE_ACCEL * dt;
+          flee.timeLeft -= dt;
+          if (flee.timeLeft <= 0) flee.active = false;
+        } else {
+          const turbAngle = (Math.random() - 0.5) * physics.turbulence * dt;
+          const cos = Math.cos(turbAngle);
+          const sin = Math.sin(turbAngle);
+          const nvx = v.x * cos - v.y * sin;
+          const nvy = v.x * sin + v.y * cos;
+          v.x = nvx;
+          v.y = nvy + physics.biasY * dt;
+
+          if (Math.random() < physics.dartChance) {
+            const dartAngle = Math.random() * Math.PI * 2;
+            v.x += Math.cos(dartAngle) * physics.dartStrength * dt;
+            v.y += Math.sin(dartAngle) * physics.dartStrength * dt;
+          }
         }
 
         const speed = Math.hypot(v.x, v.y);
-        const maxSpeed = physics.speed * 2.2;
+        const maxSpeed = physics.speed * (flee.active ? 5 : 2.2);
         if (speed > maxSpeed) {
           v.x = (v.x / speed) * maxSpeed;
           v.y = (v.y / speed) * maxSpeed;
@@ -86,7 +103,7 @@ export function FloatingWord({
         const w = Math.max(containerWidth, 40);
         const h = Math.max(containerHeight, 40);
 
-        if (physics.edgeMode === "bounce") {
+        if (physics.edgeMode === "bounce" || flee.active) {
           if (nx < 0) {
             nx = 0;
             v.x = Math.abs(v.x);
@@ -122,11 +139,19 @@ export function FloatingWord({
     e.currentTarget.setPointerCapture(e.pointerId);
     const rect = e.currentTarget.getBoundingClientRect();
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setDragging(true);
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    moved.current = false;
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    if (!moved.current && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      moved.current = true;
+      setDragging(true);
+    }
+    if (!moved.current) return;
+
     const parentRect = elRef.current?.parentElement?.getBoundingClientRect();
     const x = e.clientX - (parentRect?.left ?? 0) - dragOffset.current.x;
     const y = e.clientY - (parentRect?.top ?? 0) - dragOffset.current.y;
@@ -136,7 +161,30 @@ export function FloatingWord({
     pos.current = { x, y };
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!moved.current) {
+      // click, not a drag: send the word fleeing away from the click point
+      const rect = e.currentTarget.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      let dx = centerX - e.clientX;
+      let dy = centerY - e.clientY;
+      const len = Math.hypot(dx, dy);
+      if (len < 0.01) {
+        const angle = Math.random() * Math.PI * 2;
+        dx = Math.cos(angle);
+        dy = Math.sin(angle);
+      } else {
+        dx /= len;
+        dy /= len;
+      }
+
+      fleeing.current = { active: true, dirX: dx, dirY: dy, timeLeft: FLEE_DURATION };
+      if (vel.current) {
+        vel.current.x += dx * FLEE_BURST;
+        vel.current.y += dy * FLEE_BURST;
+      }
+    }
     setDragging(false);
     lastTime.current = null;
   };
