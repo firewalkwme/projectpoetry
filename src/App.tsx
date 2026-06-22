@@ -16,6 +16,7 @@ function App() {
     return (
       <>
         <ParticleBackground mood={mood} />
+        <FlowFieldBackground tint={getThreadColor(mood)} cornersOnly />
         <DeconstructedPoem
           poem={poem}
           mood={mood}

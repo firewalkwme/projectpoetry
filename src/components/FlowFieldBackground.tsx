@@ -12,7 +12,15 @@ type Particle = { x: number; y: number; life: number; maxLife: number };
 
 type Props = {
   tint?: string;
+  cornersOnly?: boolean;
 };
+
+const CORNER_MASK = `
+  radial-gradient(circle at top left, black 0%, transparent 38%),
+  radial-gradient(circle at top right, black 0%, transparent 38%),
+  radial-gradient(circle at bottom left, black 0%, transparent 38%),
+  radial-gradient(circle at bottom right, black 0%, transparent 38%)
+`;
 
 function spawnParticle(w: number, h: number): Particle {
   return {
@@ -23,7 +31,7 @@ function spawnParticle(w: number, h: number): Particle {
   };
 }
 
-export function FlowFieldBackground({ tint = "#ffffff" }: Props) {
+export function FlowFieldBackground({ tint = "#ffffff", cornersOnly = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -178,6 +186,8 @@ export function FlowFieldBackground({ tint = "#ffffff" }: Props) {
         inset: 0,
         zIndex: -1,
         display: "block",
+        WebkitMaskImage: cornersOnly ? CORNER_MASK : undefined,
+        maskImage: cornersOnly ? CORNER_MASK : undefined,
       }}
     />
   );
