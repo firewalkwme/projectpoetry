@@ -12,6 +12,7 @@ export function PoemInput({ value, onChange, mood, onSubmit }: Props) {
   const [draft, setDraft] = useState(value);
 
   const handleSubmit = () => {
+    if (!draft.trim()) return;
     onChange(draft);
     onSubmit();
   };
@@ -19,45 +20,80 @@ export function PoemInput({ value, onChange, mood, onSubmit }: Props) {
   return (
     <div
       style={{
-        maxWidth: 600,
-        margin: "0 auto",
+        position: "relative",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "2.5rem",
         padding: "2rem",
-        textAlign: "center",
+        color: "#f4f4f4",
       }}
     >
-      <h1 style={{ fontFamily: "Georgia, serif" }}>Write here</h1>
+      <h1
+        style={{
+          fontFamily: "Georgia, serif",
+          fontWeight: 400,
+          fontSize: "2.4rem",
+          letterSpacing: "0.04em",
+          margin: 0,
+          opacity: 0.92,
+        }}
+      >
+        Write here
+      </h1>
+
       <textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Type or paste a poem..."
         rows={10}
         style={{
-          width: "100%",
-          fontSize: "1.1rem",
+          width: "min(620px, 90vw)",
+          fontSize: "1.15rem",
+          lineHeight: 1.6,
           fontFamily: "Georgia, serif",
-          padding: "1rem",
-          borderRadius: 8,
-          border: "1px solid #ccc",
-          resize: "vertical",
+          color: "#f4f4f4",
+          background: "transparent",
+          border: "none",
+          borderBottom: "1px solid rgba(244,244,244,0.35)",
+          outline: "none",
+          resize: "none",
+          textAlign: "center",
+          padding: "0.5rem 0",
         }}
       />
+
       <button
         onClick={handleSubmit}
         style={{
-          marginTop: "1rem",
-          fontSize: "1rem",
           fontFamily: "Georgia, serif",
-          padding: "0.6rem 1.5rem",
-          borderRadius: 8,
-          border: "1px solid #888",
-          background: "#fff",
+          fontSize: "0.95rem",
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          padding: "0.6rem 2rem",
+          borderRadius: 999,
+          border: "1px solid rgba(244,244,244,0.5)",
+          background: "transparent",
+          color: "#f4f4f4",
           cursor: "pointer",
+          transition: "background 0.2s ease, color 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(244,244,244,0.9)";
+          e.currentTarget.style.color = "#0a0a0a";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.color = "#f4f4f4";
         }}
       >
         Submit
       </button>
-      <p style={{ opacity: 0.7, marginTop: "0.5rem" }}>
-        Detected mood: <strong>{mood}</strong>
+
+      <p style={{ opacity: 0.45, fontSize: "0.85rem", letterSpacing: "0.05em" }}>
+        mood: {mood}
       </p>
     </div>
   );
