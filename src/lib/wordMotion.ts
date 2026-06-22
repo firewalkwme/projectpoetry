@@ -7,72 +7,91 @@ export type MoodPhysics = {
   edgeMode: "bounce" | "wrapY";
   dartChance: number;
   dartStrength: number;
+  initialAngleCenter: number;
+  initialAngleSpread: number;
 };
+
+const FULL_SPREAD = Math.PI * 2;
 
 export function getMoodPhysics(mood: Mood): MoodPhysics {
   switch (mood) {
     case "joyful":
       return {
-        speed: 55,
-        turbulence: 2.6,
+        speed: 95,
+        turbulence: 4.2,
         biasY: 0,
         edgeMode: "bounce",
-        dartChance: 0,
-        dartStrength: 0,
+        dartChance: 0.004,
+        dartStrength: 100,
+        initialAngleCenter: 0,
+        initialAngleSpread: FULL_SPREAD,
       };
     case "angry":
       return {
-        speed: 85,
-        turbulence: 4.5,
+        speed: 130,
+        turbulence: 7,
         biasY: 0,
         edgeMode: "bounce",
-        dartChance: 0.01,
-        dartStrength: 140,
+        dartChance: 0.02,
+        dartStrength: 200,
+        initialAngleCenter: 0,
+        initialAngleSpread: FULL_SPREAD,
       };
     case "melancholic":
+      // rainfall: fast, mostly-straight downward fall with minimal sway
       return {
-        speed: 16,
-        turbulence: 1.4,
-        biasY: 7,
+        speed: 130,
+        turbulence: 0.25,
+        biasY: 90,
         edgeMode: "wrapY",
         dartChance: 0,
         dartStrength: 0,
+        initialAngleCenter: Math.PI / 2,
+        initialAngleSpread: 0.25,
       };
     case "fearful":
       return {
-        speed: 22,
-        turbulence: 2.2,
-        biasY: 4,
+        speed: 45,
+        turbulence: 3.6,
+        biasY: 5,
         edgeMode: "bounce",
-        dartChance: 0.015,
-        dartStrength: 160,
+        dartChance: 0.025,
+        dartStrength: 190,
+        initialAngleCenter: 0,
+        initialAngleSpread: FULL_SPREAD,
       };
     case "calm":
       return {
-        speed: 10,
-        turbulence: 0.6,
+        speed: 20,
+        turbulence: 1.2,
         biasY: 0,
         edgeMode: "bounce",
         dartChance: 0,
         dartStrength: 0,
+        initialAngleCenter: 0,
+        initialAngleSpread: FULL_SPREAD,
       };
     case "romantic":
       return {
-        speed: 13,
-        turbulence: 0.8,
-        biasY: -6,
+        speed: 26,
+        turbulence: 1.4,
+        biasY: -8,
         edgeMode: "wrapY",
         dartChance: 0,
         dartStrength: 0,
+        initialAngleCenter: -Math.PI / 2,
+        initialAngleSpread: 0.8,
       };
     default:
       return {
-        speed: 12,
-        turbulence: 1,
+        speed: 24,
+        turbulence: 1.8,
         biasY: 0,
         edgeMode: "bounce",
-        dartChance: 0,
-        dartStrength: 0,
+        dartChance: 0.003,
+        dartStrength: 60,
+        initialAngleCenter: 0,
+        initialAngleSpread: FULL_SPREAD,
       };
   }
 }

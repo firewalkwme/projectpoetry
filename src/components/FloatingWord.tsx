@@ -39,7 +39,9 @@ export function FloatingWord({
     const physics = getMoodPhysics(mood);
 
     if (!vel.current) {
-      const angle = ((hash % 1000) / 1000) * Math.PI * 2;
+      const spreadOffset =
+        (((hash % 1000) / 1000) - 0.5) * physics.initialAngleSpread;
+      const angle = physics.initialAngleCenter + spreadOffset;
       vel.current = {
         x: Math.cos(angle) * physics.speed,
         y: Math.sin(angle) * physics.speed,
