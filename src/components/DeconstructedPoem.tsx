@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { WordSwarm, type SwarmWord } from "./WordSwarm";
+import { useMemo } from "react";
+import { PoemCanvas } from "./PoemCanvas";
 import { getThreadColor } from "../lib/particlePresets";
 import { countWordFrequencies, normalizeWord } from "../lib/wordFrequency";
+import { resolveElemental } from "../lib/elemental";
+import type { SceneWord } from "../lib/poemSketch";
 import type { Mood } from "../lib/moods";
 
 type Props = {
@@ -12,8 +14,9 @@ type Props = {
 
 export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
   const threadColor = getThreadColor(mood);
+  const elemental = useMemo(() => resolveElemental(poem), [poem]);
 
-  const swarmWords: SwarmWord[] = useMemo(() => {
+  const sceneWords: SceneWord[] = useMemo(() => {
     const rawWords = poem.split(/\s+/).map((w) => w.trim()).filter(Boolean);
     const frequencies = countWordFrequencies(poem);
     const maxCount = Math.max(...Array.from(frequencies.values()), 1);
@@ -30,29 +33,10 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
     });
   }, [poem]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 800, height: 500 });
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const update = () =>
-      setSize({ width: el.clientWidth, height: el.clientHeight });
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div
-      style={{
-        position: "relative",
-        minHeight: "100vh",
-        padding: "2rem 1rem 4rem",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+    <>
+      <PoemCanvas words={sceneWords} mood={mood} color={threadColor} elemental={elemental} />
+      <div style={{ position: "relative", textAlign: "center", padding: "2rem 1rem" }}>
         <button
           onClick={onEdit}
           style={{
@@ -68,18 +52,6 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
           ← edit poem
         </button>
       </div>
-      <div
-        ref={containerRef}
-        style={{ position: "relative", height: "80vh", overflow: "hidden" }}
-      >
-        <WordSwarm
-          words={swarmWords}
-          mood={mood}
-          color={threadColor}
-          containerWidth={size.width}
-          containerHeight={size.height}
-        />
-      </div>
-    </div>
+    </>
   );
 }

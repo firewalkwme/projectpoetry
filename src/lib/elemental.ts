@@ -20,6 +20,25 @@ export type ElementalSpec = {
   palette: [string, string, string];
 };
 
+export type ElementalKindConfig = {
+  gravityX: number;
+  gravityY: number;
+  jitter: number;
+  baseCount: number;
+  sizeMin: number;
+  sizeMax: number;
+  shape: "line" | "circle" | "leaf" | "blob";
+  glow: boolean;
+};
+
+export const ELEMENTAL_KIND_CONFIG: Record<ElementalKind, ElementalKindConfig> = {
+  rain: { gravityX: 25, gravityY: 420, jitter: 8, baseCount: 160, sizeMin: 8, sizeMax: 18, shape: "line", glow: false },
+  embers: { gravityX: 0, gravityY: -45, jitter: 22, baseCount: 70, sizeMin: 1.5, sizeMax: 3.2, shape: "circle", glow: true },
+  leaves: { gravityX: 18, gravityY: 55, jitter: 30, baseCount: 36, sizeMin: 5, sizeMax: 9, shape: "leaf", glow: false },
+  motes: { gravityX: 0, gravityY: -10, jitter: 16, baseCount: 50, sizeMin: 1.5, sizeMax: 3, shape: "circle", glow: true },
+  smoke: { gravityX: 6, gravityY: -22, jitter: 8, baseCount: 22, sizeMin: 30, sizeMax: 60, shape: "blob", glow: false },
+};
+
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
