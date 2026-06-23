@@ -46,9 +46,10 @@ export function createPoemSketch(opts: PoemSketchOptions) {
     let width = p.windowWidth;
     let height = p.windowHeight;
     const { plan, palette, shape } = opts;
-    // @types/p5 fails to expose curveVertex on the p5 class type
+    // p5 2.x replaced curveVertex with splineVertex (same smooth-curve
+    // behavior); @types/p5 also doesn't expose it on the class type
     const curveVertex = (x: number, y: number) =>
-      (p as unknown as { curveVertex: (x: number, y: number) => void }).curveVertex(x, y);
+      (p as unknown as { splineVertex: (x: number, y: number) => void }).splineVertex(x, y);
 
     // intensity blends mood negativity with the poem's existential weight;
     // it drives how deep and chaotic the fractals grow (calm/neutral stay
@@ -118,6 +119,7 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       const w = 220;
       const h = 220;
       const g = p.createGraphics(w, h);
+      g.pixelDensity(1); // index g.pixels as w*h*4 regardless of retina DPR
       g.loadPixels();
       const octaves = 5;
       for (let y = 0; y < h; y++) {
