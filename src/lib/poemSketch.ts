@@ -18,9 +18,6 @@ export function createPoemSketch(opts: PoemSketchOptions) {
     let width = p.windowWidth;
     let height = p.windowHeight;
     const { plan, palette } = opts;
-    // @types/p5 fails to merge curveVertex onto the p5 class type
-    const curveVertex = (x: number, y: number) =>
-      (p as unknown as { curveVertex: (x: number, y: number) => void }).curveVertex(x, y);
 
     let startMs = 0;
     const blooms: { cx: number; cy: number; r: number; life: number }[] = [];
@@ -88,10 +85,7 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       p.noStroke();
       p.fill(p.red(col), p.green(col), p.blue(col), 150 * progress);
       p.beginShape();
-      curveVertex(pts[points - 1].x, pts[points - 1].y);
-      for (const pt of pts) curveVertex(pt.x, pt.y);
-      curveVertex(pts[0].x, pts[0].y);
-      curveVertex(pts[1].x, pts[1].y);
+      for (const pt of pts) p.vertex(pt.x, pt.y);
       p.endShape(p.CLOSE);
 
       p.fill(255, 255, 245, 35 * progress);
@@ -116,7 +110,7 @@ export function createPoemSketch(opts: PoemSketchOptions) {
           const angle = baseAngle + theta + t * 0.01 * dir;
           const x = cx + Math.cos(angle) * (rr + wob);
           const y = cy + Math.sin(angle) * (rr + wob);
-          curveVertex(x, y);
+          p.vertex(x, y);
         }
         p.endShape();
       }
@@ -189,12 +183,18 @@ export function createPoemSketch(opts: PoemSketchOptions) {
         drawBlob(cx, cy, radius, cluster.seed, t, progress, col);
         if (cluster.hasOrb) drawOrb(cx, cy, radius, cluster.orbAngle, t, progress, col);
 
-        if (cluster.word && progress > 0.6) {
+        if (cluster.words.length > 0 && progress > 0.6) {
           const labelAlpha = (progress - 0.6) / 0.4;
           p.fill(255, 250, 240, 200 * labelAlpha);
-          p.textSize(13 + radius * 0.04);
+          p.textSize(11 + radius * 0.03);
           p.textStyle(p.ITALIC);
-          p.text(cluster.word, cx, cy + radius * 1.9);
+          const ringRadius = radius * 1.7;
+          cluster.words.forEach((word, wi) => {
+            const wordAngle = (wi / cluster.words.length) * p.TWO_PI + cluster.seed * 0.0007;
+            const wx = cx + Math.cos(wordAngle) * ringRadius;
+            const wy = cy + Math.sin(wordAngle) * ringRadius * 0.85;
+            p.text(word, wx, wy);
+          });
           p.textStyle(p.NORMAL);
         }
       });

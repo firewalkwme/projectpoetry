@@ -1,5 +1,4 @@
 import { hashString } from "./hash";
-import { countWordFrequencies } from "./wordFrequency";
 
 export type ClusterPlan = {
   x: number; // normalized 0..1
@@ -10,8 +9,31 @@ export type ClusterPlan = {
   hasOrb: boolean;
   orbAngle: number;
   seed: number;
-  word?: string;
+  // every content word from this stanza, linking words removed -- "they
+  // should all be there", not just the most-repeated ones
+  words: string[];
 };
+
+const STOPWORDS = new Set([
+  "a", "an", "the", "and", "but", "or", "nor", "so", "yet",
+  "with", "of", "to", "in", "on", "at", "for", "by", "from",
+  "into", "onto", "over", "under", "through", "as",
+  "is", "was", "were", "am", "are", "be", "been", "being",
+]);
+
+function contentWords(text: string): string[] {
+  const seen = new Set<string>();
+  const words: string[] = [];
+  for (const raw of text.split(/\s+/)) {
+    const clean = raw.replace(/[^a-zA-Z']/g, "");
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (STOPWORDS.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    words.push(clean);
+  }
+  return words;
+}
 
 export type PaintingPlan = {
   seed: number;
@@ -33,21 +55,6 @@ function mulberry32(seed: number) {
   };
 }
 
-function topWords(poem: string, count: number): string[] {
-  const frequencies = countWordFrequencies(poem);
-  const seen = new Set<string>();
-  const ranked = Array.from(frequencies.entries())
-    .filter(([w]) => w.length > 2)
-    .sort((a, b) => b[1] - a[1])
-    .map(([w]) => w)
-    .filter((w) => {
-      if (seen.has(w)) return false;
-      seen.add(w);
-      return true;
-    });
-  return ranked.slice(0, count);
-}
-
 export function buildPaintingPlan(poem: string): PaintingPlan {
   const seed = hashString(poem);
   const rng = mulberry32(seed);
@@ -63,7 +70,6 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
   const lyricism = Math.min(1, (punctCount / Math.max(lines.length, 1)) * 0.45 + (avgWordLen / 7) * 0.55);
 
   const clusterCount = Math.max(1, Math.min(7, stanzas.length || Math.ceil(lines.length / 4) || 1));
-  const labels = topWords(poem, clusterCount);
 
   const clusters: ClusterPlan[] = [];
   for (let i = 0; i < clusterCount; i++) {
@@ -101,7 +107,7 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
       hasOrb: rng() > 0.4,
       orbAngle: rng() * Math.PI * 2,
       seed: Math.floor(rng() * 100000),
-      word: labels[i],
+      words: contentWords(stanzas[i] ?? ""),
     });
   }
 

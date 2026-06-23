@@ -15,12 +15,12 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
   const palette = MOOD_PALETTE[mood];
   const plan = useMemo(() => buildPaintingPlan(poem), [poem]);
   const [soundOn, setSoundOn] = useState(false);
-  const audioRef = useRef(createPoemAudio(poem));
+  const audioRef = useRef(createPoemAudio(poem, mood));
 
   useEffect(() => {
-    audioRef.current = createPoemAudio(poem);
+    audioRef.current = createPoemAudio(poem, mood);
     return () => audioRef.current.stop();
-  }, [poem]);
+  }, [poem, mood]);
 
   const toggleSound = () => {
     if (soundOn) {
@@ -34,7 +34,7 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
 
   return (
     <>
-      <PoemCanvas plan={plan} palette={palette} onBloom={() => audioRef.current.triggerRainBurst()} />
+      <PoemCanvas plan={plan} palette={palette} onBloom={() => audioRef.current.triggerBloom()} />
       <div style={{ position: "relative", textAlign: "center", padding: "2rem 1rem", display: "flex", gap: "0.75rem", justifyContent: "center" }}>
         <button
           onClick={onEdit}
