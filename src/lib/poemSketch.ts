@@ -1,12 +1,14 @@
 import type p5 from "p5";
 import type { PaintingPlan } from "./poemPainting";
 import type { ShapeCharacter } from "./moodShape";
+import type { EnvShot } from "./poemAudio";
 
 export type PoemSketchOptions = {
   plan: PaintingPlan;
   palette: string[];
   shape: ShapeCharacter;
-  onBloom?: () => void;
+  clusterSounds: EnvShot[];
+  onInteract?: (kind: EnvShot) => void;
 };
 
 const DRAG_HIT_RADIUS_MUL = 1.8; // x cluster radius
@@ -28,10 +30,9 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
-// Gielis superformula: a single equation that, by varying m/n1/n2/n3,
-// sweeps through circles, flowers, stars, blobs, and amoeba-like organic
-// silhouettes -- exactly the kind of surreal botanical forms we want.
-// Returns a radius multiplier in (0, 1], peaking at the lobe tips.
+// Gielis superformula: one equation that sweeps through circles, flowers,
+// stars, and amoeba-like organic silhouettes. Returns a radius multiplier
+// in (0, 1], peaking at the lobe tips.
 function superShapeRadius(theta: number, m: number, n1: number, n2: number, n3: number): number {
   const t1 = Math.pow(Math.abs(Math.cos((m * theta) / 4)), n2);
   const t2 = Math.pow(Math.abs(Math.sin((m * theta) / 4)), n3);
@@ -49,7 +50,19 @@ export function createPoemSketch(opts: PoemSketchOptions) {
     const curveVertex = (x: number, y: number) =>
       (p as unknown as { curveVertex: (x: number, y: number) => void }).curveVertex(x, y);
 
+    // intensity blends mood negativity with the poem's existential weight;
+    // it drives how deep and chaotic the fractals grow (calm/neutral stay
+    // shallow and soft, intense-negative/existential go deep and wild)
+    const intensity = Math.max(0, Math.min(1, shape.negativity * 0.7 + plan.existential * 0.6));
+    const fractalDepth = Math.min(6, Math.round(3 + intensity * 2 + plan.lyricism)); // 3..6
+    const branchChildren = Math.min(3, 2 + Math.round(plan.lyricism)); // 2..3, lyricism -> intricacy
+    const branchChaos = 0.25 + intensity * 0.7;
+    const branchSoftness = 1 - intensity * 0.5;
+
     let startMs = 0;
+    let vividPalette: p5.Color[] = [];
+    let tipColor: p5.Color;
+    let fbm: p5.Graphics | null = null;
     const blooms: { cx: number; cy: number; r: number; life: number }[] = [];
     const runtime: ClusterRuntime[] = plan.clusters.map(() => ({
       offsetX: 0,
@@ -68,13 +81,20 @@ export function createPoemSketch(opts: PoemSketchOptions) {
     let moved = false;
     let lastFrameMs = 0;
 
-    function clusterColor(i: number): p5.Color {
-      return p.color(palette[i % palette.length]);
+    // richer jewel tones: push saturation/brightness up a notch while
+    // keeping the organic, non-neon feel
+    function vivid(hex: string): p5.Color {
+      const base = p.color(hex);
+      p.colorMode(p.HSB, 360, 100, 100, 255);
+      const out = p.color(
+        p.hue(base),
+        Math.min(100, p.saturation(base) * 1.35 + 8),
+        Math.min(100, p.brightness(base) * 1.1 + 5)
+      );
+      p.colorMode(p.RGB, 255);
+      return out;
     }
 
-    // mix a color toward white -- the mood palettes are near-monochrome
-    // (e.g. all dark reds for "angry"), so forms need to be lifted clear
-    // of the equally-dark backdrop to actually read
     function lighten(col: p5.Color, amt: number): p5.Color {
       return p.color(
         p.red(col) + (255 - p.red(col)) * amt,
@@ -83,9 +103,45 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       );
     }
 
+    function clusterColor(i: number): p5.Color {
+      return vividPalette[i % vividPalette.length];
+    }
+
     function clusterProgress(i: number, globalT: number): number {
       const start = (i / plan.clusters.length) * 0.5;
       return easeOutCubic(Math.max(0, Math.min(1, (globalT - start) / (1 - start))));
+    }
+
+    // pre-render a fractal-noise (FBM) cloud texture once; it drifts in the
+    // backdrop behind everything as a marble/veined ground
+    function buildFbm() {
+      const w = 220;
+      const h = 220;
+      const g = p.createGraphics(w, h);
+      g.loadPixels();
+      const octaves = 5;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let amp = 1;
+          let freq = 0.012;
+          let sum = 0;
+          let norm = 0;
+          for (let o = 0; o < octaves; o++) {
+            sum += amp * p.noise(x * freq + 100, y * freq + 100);
+            norm += amp;
+            amp *= 0.55;
+            freq *= 2.1;
+          }
+          const v = Math.pow(sum / norm, 1.6); // sharpen into veins
+          const idx = 4 * (y * w + x);
+          g.pixels[idx] = 255;
+          g.pixels[idx + 1] = 255;
+          g.pixels[idx + 2] = 255;
+          g.pixels[idx + 3] = v * 90;
+        }
+      }
+      g.updatePixels();
+      return g;
     }
 
     p.setup = () => {
@@ -96,6 +152,9 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       p.textFont("Georgia, serif");
       p.textAlign(p.CENTER, p.CENTER);
       p.noiseSeed(plan.seed);
+      vividPalette = palette.map(vivid);
+      tipColor = p.color(shape.tip[0], shape.tip[1], shape.tip[2]);
+      fbm = buildFbm();
       startMs = p.millis();
       lastFrameMs = startMs;
     };
@@ -152,8 +211,8 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       if (dragIndex >= 0) {
         runtime[dragIndex].dragging = false;
         if (!moved) {
-          // a real click (no drag): physically disturb this cluster --
-          // push it away from the click point, it springs back on its own
+          // a real click (no drag): physically disturb this cluster and
+          // fire the environmental sound that matches its content
           const { cx, cy } = clusterCenter(dragIndex);
           const dx = cx - p.mouseX;
           const dy = cy - p.mouseY;
@@ -161,10 +220,11 @@ export function createPoemSketch(opts: PoemSketchOptions) {
           const radius = clusterCenter(dragIndex).radius;
           runtime[dragIndex].pushX += (dx / len) * radius * DISTURB_STRENGTH;
           runtime[dragIndex].pushY += (dy / len) * radius * DISTURB_STRENGTH;
+          opts.onInteract?.(opts.clusterSounds[dragIndex] ?? opts.clusterSounds[0]);
+          blooms.push({ cx: p.mouseX, cy: p.mouseY, r: 0, life: 1 });
         }
       } else if (!moved) {
         blooms.push({ cx: p.mouseX, cy: p.mouseY, r: 0, life: 1 });
-        opts.onBloom?.();
       }
       dragIndex = -1;
     };
@@ -175,8 +235,20 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       p.fill(p.red(base) * 0.5, p.green(base) * 0.5, p.blue(base) * 0.5);
       p.rect(0, 0, width, height);
 
+      // drifting fractal-noise veins
+      if (fbm) {
+        const tintCol = vividPalette[0];
+        p.push();
+        p.tint(p.red(tintCol), p.green(tintCol), p.blue(tintCol), 55);
+        const ox = Math.sin(t * 0.012) * 40;
+        const oy = Math.cos(t * 0.009) * 40;
+        p.image(fbm, -60 + ox, -60 + oy, width + 120, height + 120);
+        p.noTint();
+        p.pop();
+      }
+
       for (let i = 0; i < palette.length; i++) {
-        const col = p.color(palette[i]);
+        const col = vividPalette[i];
         const wx = width * (0.2 + 0.6 * ((Math.sin(t * 0.02 + i * 2.1) + 1) / 2));
         const wy = height * (0.2 + 0.6 * ((Math.cos(t * 0.017 + i * 1.7) + 1) / 2));
         const r = Math.max(width, height) * 0.4;
@@ -188,13 +260,48 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       }
     }
 
+    // recursive coral/lightning growth out of a cluster rim
+    function drawBranch(x: number, y: number, angle: number, len: number, weight: number, depth: number, t: number, seed: number, baseCol: p5.Color, alphaMul: number) {
+      if (depth <= 0 || len < 3) return;
+      const frac = 1 - depth / fractalDepth; // 0 root .. ~1 tip
+      const col = p.lerpColor(baseCol, tipColor, frac); // hue shift outward
+      const sway = Math.sin(t * 0.5 * shape.speedMul + seed * 0.13 + depth) * 0.18 * branchChaos;
+      const a2 = angle + sway;
+      const ex = x + Math.cos(a2) * len;
+      const ey = y + Math.sin(a2) * len;
+      p.stroke(p.red(col), p.green(col), p.blue(col), 150 * alphaMul * (0.45 + frac * 0.55));
+      p.strokeWeight(Math.max(0.4, weight));
+      p.line(x, y, ex, ey);
+
+      const n = branchChildren;
+      const fan = 0.5 + branchChaos;
+      for (let i = 0; i < n; i++) {
+        const spread = (n === 1 ? 0 : i / (n - 1) - 0.5) * 2 * fan;
+        const jitter = Math.sin(seed * 0.07 + i * 2.3 + depth) * 0.25 * branchChaos;
+        drawBranch(ex, ey, a2 + spread + jitter, len * (0.58 + 0.1 * branchSoftness), weight * 0.68, depth - 1, t, seed + i * 37 + depth, baseCol, alphaMul);
+      }
+    }
+
+    function drawFractalBranches(cx: number, cy: number, radius: number, count: number, seed: number, t: number, progress: number, col: p5.Color) {
+      if (progress < 0.35) return;
+      const starts = Math.min(count, 4);
+      const sc = (p as unknown as { strokeCap: (c: unknown) => void; ROUND: unknown });
+      sc.strokeCap(sc.ROUND);
+      for (let k = 0; k < starts; k++) {
+        const lifeCycle = 0.55 + 0.45 * Math.sin(t * 0.05 + k * 1.7 + seed * 0.01);
+        if (lifeCycle <= 0.08) continue;
+        const baseAngle = (k / starts) * p.TWO_PI + seed * 0.001;
+        const sx = cx + Math.cos(baseAngle) * radius * 0.85;
+        const sy = cy + Math.sin(baseAngle) * radius * 0.85;
+        drawBranch(sx, sy, baseAngle, radius * 0.9 * progress * lifeCycle, 1.6, fractalDepth, t, seed * 7 + k * 101, col, progress * lifeCycle);
+      }
+      p.noStroke();
+    }
+
     function drawBlob(cx: number, cy: number, radius: number, seed: number, t: number, progress: number, col: p5.Color) {
       const points = 140;
       const pts: { x: number; y: number }[] = [];
 
-      // superformula parameters derived from the cluster seed and mood:
-      // jagged moods get more lobes and a smaller n1 (sharper spikes),
-      // lyrical poems soften the lobe profile into petals
       const m = 2 + (seed % 5) + Math.round(shape.jaggedness * 6);
       const n1 = 1.15 - shape.jaggedness * 0.85;
       const n2 = 0.6 + (seed % 3) * 0.2 + plan.lyricism * 0.6;
@@ -207,7 +314,6 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       for (let i = 0; i <= points; i++) {
         const a = (i / points) * p.TWO_PI;
         const sr = superShapeRadius(a, m, n1, n2, n3);
-        // organic breathing: noise nudges each point in and out over time
         const breath = 1 + (p.noise(seed * 0.01 + Math.cos(a) * 1.1, seed * 0.01 + Math.sin(a) * 1.1, t * 0.05 * noiseSpeed) - 0.5) * breathAmt;
         const r = radius * sr * breath * progress * bouncePulse;
         pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
@@ -220,9 +326,24 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       for (const pt of pts) curveVertex(pt.x, pt.y);
       p.endShape(p.CLOSE);
 
+      // nested self-similar shells (fractal "shape within shape")
+      const nestCol = p.lerpColor(body, tipColor, 0.5);
+      p.noFill();
+      p.stroke(p.red(nestCol), p.green(nestCol), p.blue(nestCol), 95 * progress);
+      p.strokeWeight(1);
+      for (const s of [0.62, 0.34]) {
+        p.beginShape();
+        for (let i = 0; i <= points; i++) {
+          const a = (i / points) * p.TWO_PI;
+          const sr = superShapeRadius(a, m, n1, n2, n3);
+          const r = radius * sr * s * progress * bouncePulse;
+          curveVertex(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        }
+        p.endShape(p.CLOSE);
+      }
+
       // bright rim so the silhouette stays legible on the dark backdrop
       const rim = lighten(col, 0.55);
-      p.noFill();
       p.stroke(p.red(rim), p.green(rim), p.blue(rim), 150 * progress);
       p.strokeWeight(1.2);
       p.beginShape();
@@ -230,43 +351,8 @@ export function createPoemSketch(opts: PoemSketchOptions) {
       p.endShape(p.CLOSE);
       p.noStroke();
 
-      // soft inner highlight to give the form some volume
       p.fill(255, 255, 245, 28 * progress);
       p.circle(cx - radius * 0.15, cy - radius * 0.2, radius * 0.4);
-    }
-
-    function drawTendrils(cx: number, cy: number, radius: number, count: number, seed: number, t: number, progress: number, col: p5.Color) {
-      p.noFill();
-      p.strokeWeight(1.4);
-      const noiseSpeed = (1.4 - plan.lyricism * 0.8) * (1 + shape.erraticism * 1.2) * shape.speedMul;
-      const rotSpeed = 0.01 * shape.speedMul;
-      for (let k = 0; k < count; k++) {
-        // each tendril softly fades in and out over a long, individual
-        // cycle -- the composition keeps sprouting/retracting forever
-        // instead of settling into a fixed final state
-        const lifeCycle = 0.55 + 0.45 * Math.sin(t * 0.06 + k * 1.7 + seed * 0.01);
-        if (lifeCycle <= 0.05) continue;
-        const strand = lighten(col, 0.4);
-        p.stroke(p.red(strand), p.green(strand), p.blue(strand), 175 * progress * lifeCycle);
-
-        const baseAngle = (k / count) * p.TWO_PI + seed * 0.001;
-        const dir = k % 2 === 0 ? 1 : -1;
-        const turns = 1.6 + (seed % 5) * 0.15;
-        const samples = 18;
-        p.beginShape();
-        for (let i = 0; i <= samples; i++) {
-          const frac = (i / samples) * progress * lifeCycle;
-          const theta = frac * Math.PI * turns * dir;
-          const rr = radius * (1 + frac * 1.8);
-          const wob = p.noise(seed * 0.02 + k, t * 0.03 * noiseSpeed + i * 0.2) * radius * 0.3;
-          const angle = baseAngle + theta + t * rotSpeed * dir;
-          const x = cx + Math.cos(angle) * (rr + wob);
-          const y = cy + Math.sin(angle) * (rr + wob);
-          p.vertex(x, y);
-        }
-        p.endShape();
-      }
-      p.noStroke();
     }
 
     function drawOrb(cx: number, cy: number, radius: number, angle: number, t: number, progress: number, col: p5.Color) {
@@ -305,8 +391,6 @@ export function createPoemSketch(opts: PoemSketchOptions) {
 
       drawBackdrop(t);
 
-      // decay any active click-disturbances and dot regeneration --
-      // this is what keeps the piece "alive" rather than static once formed
       for (let i = 0; i < runtime.length; i++) {
         const rt = runtime[i];
         if (!rt.dragging) {
@@ -325,12 +409,10 @@ export function createPoemSketch(opts: PoemSketchOptions) {
 
       const centers = plan.clusters.map((_, i) => clusterCenter(i));
 
-      // filaments connecting clusters, so the piece reads as one composition
-      // rather than isolated islands -- "everything coming together"
       const filamentProgress = Math.max(0, Math.min(1, (globalT - 0.55) / 0.4));
       if (filamentProgress > 0) {
         p.noFill();
-        const lineCol = p.color(palette[0]);
+        const lineCol = vividPalette[0];
         p.stroke(p.red(lineCol), p.green(lineCol), p.blue(lineCol), 70 * filamentProgress);
         p.strokeWeight(1);
         for (const [a, b] of plan.filaments) {
@@ -352,7 +434,7 @@ export function createPoemSketch(opts: PoemSketchOptions) {
         const radius = Math.min(width, height) * cluster.radius;
         const col = clusterColor(i);
 
-        drawTendrils(cx, cy, radius, cluster.tendrils, cluster.seed, t, progress, col);
+        drawFractalBranches(cx, cy, radius, cluster.tendrils, cluster.seed, t, progress, col);
         drawDots(cx, cy, radius, cluster.dotPositions, t, progress, col);
         drawBlob(cx, cy, radius, cluster.seed, t, progress, col);
         if (cluster.hasOrb) drawOrb(cx, cy, radius, cluster.orbAngle, t, progress, col);
@@ -373,8 +455,6 @@ export function createPoemSketch(opts: PoemSketchOptions) {
         }
       });
 
-      // click-on-empty-space blooms: a soft expanding ring of light, the
-      // ambient "decipher / play with it" feedback
       for (let i = blooms.length - 1; i >= 0; i--) {
         const b = blooms[i];
         b.life -= 0.016;

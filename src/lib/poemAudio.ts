@@ -1,16 +1,20 @@
 import type { Mood } from "./moods";
 
+// ---- public interface ------------------------------------------------
+export type EnvShot =
+  | "water" | "wind" | "fire" | "thunder"
+  | "birds" | "heartbeat" | "bells" | "drone";
+
 export type PoemAudioHandle = {
   start: () => void;
   stop: () => void;
-  triggerBloom: () => void;
+  triggerEnv: (kind: EnvShot) => void;
   isPlaying: () => boolean;
 };
 
-// ---- pitch material -------------------------------------------------
+// ---- pitch material --------------------------------------------------
 // each stanza rotates through a different mode and a different timbre,
-// so stanzas read as distinct musical "sections" rather than one
-// continuous texture
+// so stanzas read as distinct musical "sections"
 const STANZA_SCALES: number[][] = [
   [0, 2, 3, 5, 7, 8, 10], // natural minor
   [0, 2, 3, 5, 7, 9, 10], // dorian
@@ -53,41 +57,49 @@ function normalizeWord(word: string): string {
   return word.toLowerCase().replace(/[^a-z]/g, "");
 }
 
-// ---- environmental sound rules ---------------------------------------
-// "both": mood sets a quiet base ambient bed, and specific keyword
-// mentions in the poem layer in additional, louder environmental sounds
-// on top of it
-type EnvLayerName = "water" | "wind" | "fire" | "drone";
-type SfxName = "bells" | "footsteps" | "animals";
-
-const ENV_KEYWORDS: Record<EnvLayerName, string[]> = {
-  water: ["ocean", "sea", "wave", "waves", "rain", "water", "river", "flood", "tide", "drip", "drown"],
-  wind: ["wind", "breeze", "air", "storm", "gale", "gust"],
-  fire: ["fire", "flame", "flames", "burn", "burning", "ember", "embers", "ash", "spark", "saffron"],
-  drone: ["grave", "dark", "death", "shadow", "dread", "blade", "knife", "wound", "blood", "murderous", "ferocious"],
+// ---- environmental sound routing -------------------------------------
+// which keywords map a clicked cluster to which environmental one-shot;
+// if a cluster has no matching words, the mood's default is used instead
+const ENV_KEYWORDS: Record<EnvShot, string[]> = {
+  water: ["ocean", "sea", "wave", "waves", "rain", "water", "river", "flood", "tide", "drip", "drown", "milk", "juice"],
+  wind: ["wind", "breeze", "air", "gale", "gust", "sky", "cloud", "breath"],
+  fire: ["fire", "flame", "flames", "burn", "burning", "ember", "embers", "spark", "saffron", "sun", "fired"],
+  thunder: ["thunder", "lightning", "rage", "fury", "wrath", "roar", "crack", "enraged", "ferocious", "storm"],
+  birds: ["bird", "birds", "wing", "wings", "owl", "crow", "sparrow", "sing", "song", "fly", "dawn", "feather"],
+  heartbeat: ["heart", "blood", "bloodstained", "chest", "pulse", "wound", "wounded", "body", "vein"],
+  bells: ["bell", "bells", "chime", "toll", "church", "sacred", "prayer", "holy", "pray"],
+  drone: ["grave", "death", "dead", "void", "dark", "darkness", "shadow", "dread", "nothing", "time", "eternal", "abyss", "deep", "mad", "thirst", "ravening", "mother", "blade", "knife", "murderous"],
 };
 
-const SFX_KEYWORDS: Record<SfxName, string[]> = {
-  bells: ["bell", "bells", "chime", "song", "music"],
-  footsteps: ["walk", "walked", "step", "steps", "foot", "feet", "march", "path", "ground", "land", "shoved", "threw", "pushed"],
-  animals: ["bird", "birds", "wing", "wings", "owl", "crow", "animal", "creature"],
-};
+// tie-break priority: louder/heavier sounds win when a cluster mentions
+// several themes at once
+const ENV_PRIORITY: EnvShot[] = ["thunder", "fire", "water", "drone", "heartbeat", "birds", "bells", "wind"];
 
-const MOOD_BASE_LAYER: Record<Mood, EnvLayerName> = {
-  joyful: "wind",
-  melancholic: "wind",
-  angry: "fire",
+const MOOD_DEFAULT_SHOT: Record<Mood, EnvShot> = {
+  joyful: "birds",
+  melancholic: "water",
+  angry: "thunder",
   calm: "water",
-  romantic: "water",
+  romantic: "bells",
   fearful: "drone",
   neutral: "wind",
 };
 
-type ContinuousLayer = {
-  gain: GainNode;
-  stopAll: () => void;
-};
+export function resolveClusterSound(words: string[], mood: Mood): EnvShot {
+  const norm = words.map(normalizeWord);
+  let best: EnvShot | null = null;
+  let bestHits = 0;
+  for (const kind of ENV_PRIORITY) {
+    const hits = norm.filter((w) => ENV_KEYWORDS[kind].includes(w)).length;
+    if (hits > bestHits) {
+      bestHits = hits;
+      best = kind;
+    }
+  }
+  return best ?? MOOD_DEFAULT_SHOT[mood];
+}
 
+// ---- synthesis helpers -----------------------------------------------
 function createNoiseBuffer(ctx: AudioContext, color: "white" | "pink"): AudioBuffer {
   const size = 2 * ctx.sampleRate;
   const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
@@ -107,143 +119,8 @@ function createNoiseBuffer(ctx: AudioContext, color: "white" | "pink"): AudioBuf
   return buffer;
 }
 
-function createEnvLayer(ctx: AudioContext, name: EnvLayerName, master: GainNode): ContinuousLayer {
-  const gain = ctx.createGain();
-  gain.gain.value = 0;
-  gain.connect(master);
-  const stops: (() => void)[] = [];
-
-  if (name === "water") {
-    const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx, "pink");
-    noise.loop = true;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 700;
-    const swell = ctx.createGain();
-    swell.gain.value = 0.6;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.12;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 0.4;
-    lfo.connect(lfoGain).connect(swell.gain);
-    noise.connect(filter).connect(swell).connect(gain);
-    noise.start();
-    lfo.start();
-    stops.push(() => { noise.stop(); lfo.stop(); });
-  } else if (name === "wind") {
-    const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx, "white");
-    noise.loop = true;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 500;
-    filter.Q.value = 0.7;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.07;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 350;
-    lfo.connect(lfoGain).connect(filter.frequency);
-    noise.connect(filter).connect(gain);
-    noise.start();
-    lfo.start();
-    stops.push(() => { noise.stop(); lfo.stop(); });
-  } else if (name === "fire") {
-    const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx, "white");
-    noise.loop = true;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 2200;
-    const crackle = ctx.createGain();
-    crackle.gain.value = 0.5;
-    const lfo1 = ctx.createOscillator();
-    lfo1.type = "square";
-    lfo1.frequency.value = 7;
-    const lfo2 = ctx.createOscillator();
-    lfo2.type = "sine";
-    lfo2.frequency.value = 11.3;
-    const lfoSum = ctx.createGain();
-    lfoSum.gain.value = 0.35;
-    lfo1.connect(lfoSum);
-    lfo2.connect(lfoSum);
-    lfoSum.connect(crackle.gain);
-    noise.connect(filter).connect(crackle).connect(gain);
-    noise.start();
-    lfo1.start();
-    lfo2.start();
-    stops.push(() => { noise.stop(); lfo1.stop(); lfo2.stop(); });
-  } else {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = 58;
-    const sub = ctx.createOscillator();
-    sub.type = "triangle";
-    sub.frequency.value = 29;
-    const vibrato = ctx.createOscillator();
-    vibrato.frequency.value = 0.18;
-    const vibratoGain = ctx.createGain();
-    vibratoGain.gain.value = 1.5;
-    vibrato.connect(vibratoGain).connect(osc.frequency);
-    osc.connect(gain);
-    sub.connect(gain);
-    osc.start();
-    sub.start();
-    vibrato.start();
-    stops.push(() => { osc.stop(); sub.stop(); vibrato.stop(); });
-  }
-
-  return { gain, stopAll: () => stops.forEach((s) => s()) };
-}
-
-function playBell(ctx: AudioContext, master: GainNode, time: number, freq: number) {
-  for (const mult of [1, 2.4, 3.8]) {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq * mult;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, time);
-    g.gain.exponentialRampToValueAtTime(0.06 / mult, time + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, time + 1.6);
-    osc.connect(g).connect(master);
-    osc.start(time);
-    osc.stop(time + 1.7);
-  }
-}
-
-function playFootstep(ctx: AudioContext, master: GainNode, time: number) {
-  const noise = ctx.createBufferSource();
-  noise.buffer = createNoiseBuffer(ctx, "pink");
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 300;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, time);
-  g.gain.exponentialRampToValueAtTime(0.18, time + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.25);
-  noise.connect(filter).connect(g).connect(master);
-  noise.start(time);
-  noise.stop(time + 0.3);
-}
-
-function playAnimal(ctx: AudioContext, master: GainNode, time: number) {
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  const up = Math.random() > 0.5;
-  osc.frequency.setValueAtTime(up ? 1400 : 2200, time);
-  osc.frequency.exponentialRampToValueAtTime(up ? 2200 : 1200, time + 0.12);
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, time);
-  g.gain.exponentialRampToValueAtTime(0.05, time + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.18);
-  osc.connect(g).connect(master);
-  osc.start(time);
-  osc.stop(time + 0.2);
-}
-
 // chorused note/chord: each pitch gets two slightly detuned oscillators
-// of the stanza's timbre, summed under one envelope -- richer than a
-// single bare oscillator, but still soft/ambient rather than plucky
+// of the stanza's timbre, summed under one soft envelope
 function playChord(ctx: AudioContext, master: GainNode, time: number, freqs: number[], duration: number, timbre: OscillatorType, peak: number) {
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, time);
@@ -263,57 +140,185 @@ function playChord(ctx: AudioContext, master: GainNode, time: number, freqs: num
   }
 }
 
+// ---- environmental one-shots (fired only on user interaction) --------
+function noiseShot(ctx: AudioContext, master: GainNode, color: "white" | "pink", filter: BiquadFilterType, freq: number, q: number, peak: number, attack: number, dur: number) {
+  const t = ctx.currentTime;
+  const noise = ctx.createBufferSource();
+  noise.buffer = createNoiseBuffer(ctx, color);
+  const f = ctx.createBiquadFilter();
+  f.type = filter;
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  noise.connect(f).connect(g).connect(master);
+  noise.start(t);
+  noise.stop(t + dur + 0.05);
+  return { f, g, t };
+}
+
+function shotWater(ctx: AudioContext, master: GainNode) {
+  const { f, t } = noiseShot(ctx, master, "pink", "lowpass", 500, 0.5, 0.22, 0.25, 1.4);
+  f.frequency.setValueAtTime(350, t);
+  f.frequency.linearRampToValueAtTime(900, t + 0.6);
+  f.frequency.linearRampToValueAtTime(400, t + 1.4);
+}
+
+function shotWind(ctx: AudioContext, master: GainNode) {
+  const { f, t } = noiseShot(ctx, master, "white", "bandpass", 500, 0.8, 0.16, 0.4, 2);
+  f.frequency.setValueAtTime(300, t);
+  f.frequency.linearRampToValueAtTime(850, t + 1);
+  f.frequency.linearRampToValueAtTime(320, t + 2);
+}
+
+function shotFire(ctx: AudioContext, master: GainNode) {
+  // a scatter of tiny highpass crackle pops over ~1s
+  for (let i = 0; i < 14; i++) {
+    const t = ctx.currentTime + Math.random() * 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = createNoiseBuffer(ctx, "white");
+    const f = ctx.createBiquadFilter();
+    f.type = "highpass";
+    f.frequency.value = 2500 + Math.random() * 2500;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.08 + Math.random() * 0.07, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04 + Math.random() * 0.05);
+    noise.connect(f).connect(g).connect(master);
+    noise.start(t);
+    noise.stop(t + 0.12);
+  }
+}
+
+function shotThunder(ctx: AudioContext, master: GainNode) {
+  const t = ctx.currentTime;
+  // initial crack
+  const crack = ctx.createBufferSource();
+  crack.buffer = createNoiseBuffer(ctx, "white");
+  const cf = ctx.createBiquadFilter();
+  cf.type = "lowpass";
+  cf.frequency.value = 1800;
+  const cg = ctx.createGain();
+  cg.gain.setValueAtTime(0.0001, t);
+  cg.gain.exponentialRampToValueAtTime(0.3, t + 0.01);
+  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  crack.connect(cf).connect(cg).connect(master);
+  crack.start(t);
+  crack.stop(t + 0.5);
+  // long low rumble
+  const { f } = noiseShot(ctx, master, "pink", "lowpass", 160, 0.7, 0.26, 0.12, 2.6);
+  f.frequency.linearRampToValueAtTime(70, ctx.currentTime + 2.6);
+}
+
+function shotBirds(ctx: AudioContext, master: GainNode) {
+  const n = 2 + Math.floor(Math.random() * 3);
+  let t = ctx.currentTime;
+  for (let i = 0; i < n; i++) {
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    const base = 1600 + Math.random() * 1400;
+    osc.frequency.setValueAtTime(base, t);
+    osc.frequency.exponentialRampToValueAtTime(base * (1.3 + Math.random() * 0.5), t + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(base, t + 0.16);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    osc.connect(g).connect(master);
+    osc.start(t);
+    osc.stop(t + 0.2);
+    t += 0.1 + Math.random() * 0.18;
+  }
+}
+
+function shotHeartbeat(ctx: AudioContext, master: GainNode) {
+  // lub-dub: two low thumps
+  for (const [offset, peak] of [[0, 0.32], [0.28, 0.22]] as [number, number][]) {
+    const t = ctx.currentTime + offset;
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(70, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(g).connect(master);
+    osc.start(t);
+    osc.stop(t + 0.25);
+  }
+}
+
+function shotBells(ctx: AudioContext, master: GainNode) {
+  const t = ctx.currentTime;
+  const base = 320 + Math.random() * 120;
+  for (const mult of [1, 2.4, 3.8, 5.2]) {
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = base * mult;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.07 / mult, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+    osc.connect(g).connect(master);
+    osc.start(t);
+    osc.stop(t + 2.5);
+  }
+}
+
+function shotDrone(ctx: AudioContext, master: GainNode) {
+  const t = ctx.currentTime;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.2, t + 0.6);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+  g.connect(master);
+  for (const [type, freq] of [["sine", 48], ["triangle", 24], ["sine", 72]] as [OscillatorType, number][]) {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(g);
+    osc.start(t);
+    osc.stop(t + 3.7);
+  }
+}
+
+const SHOTS: Record<EnvShot, (ctx: AudioContext, master: GainNode) => void> = {
+  water: shotWater,
+  wind: shotWind,
+  fire: shotFire,
+  thunder: shotThunder,
+  birds: shotBirds,
+  heartbeat: shotHeartbeat,
+  bells: shotBells,
+  drone: shotDrone,
+};
+
 export function createPoemAudio(poem: string, mood: Mood): PoemAudioHandle {
   const stanzas = poem
     .split(/\n\s*\n/)
     .map((s) => s.split("\n").map((l) => l.trim()).filter(Boolean))
     .filter((lines) => lines.length > 0);
   const allLines = stanzas.flat();
-  const lowerPoem = poem.toLowerCase();
 
   let ctx: AudioContext | null = null;
   let master: GainNode | null = null;
   let playing = false;
   let timers: number[] = [];
-  const envLayers = new Map<EnvLayerName, ContinuousLayer>();
 
   function clearTimers() {
     timers.forEach((t) => clearTimeout(t));
     timers = [];
   }
 
-  function keywordHits(words: string[]): number {
-    return words.filter((w) => lowerPoem.includes(w)).length;
-  }
-
-  function setupEnvironment() {
-    if (!ctx || !master) return;
-    const baseLayer = MOOD_BASE_LAYER[mood];
-
-    (Object.keys(ENV_KEYWORDS) as EnvLayerName[]).forEach((name) => {
-      const layer = createEnvLayer(ctx!, name, master!);
-      envLayers.set(name, layer);
-      const hits = keywordHits(ENV_KEYWORDS[name]);
-      const isBase = name === baseLayer;
-      // only the mood's base layer plays without any keyword support, and
-      // even then at a low level -- nothing plays at full, constant volume
-      // just by being the default
-      const target = isBase ? 0.05 : 0;
-      const boosted = Math.min(0.16, target + hits * 0.045);
-      if (boosted > 0) {
-        layer.gain.gain.linearRampToValueAtTime(boosted, ctx!.currentTime + 3);
-      }
-    });
-  }
-
-  // schedules one full pass through the poem. pitch comes from three
-  // combined signals: line length sets the base scale degree, a word
-  // that has appeared before always recurs on the same pitch (repetition
-  // becomes a melodic motif), and rhyming line-endings replay the full
-  // chord built for the first line that introduced that rhyme. rhythm
-  // comes from splitting each line into one note per word, with note
-  // duration driven by that word's estimated syllable count. each stanza
-  // rotates to a different mode + oscillator timbre.
+  // the always-on ambient composition. pitch combines three signals:
+  // line length sets the base scale degree, a repeated word always recurs
+  // on the same pitch (repetition -> melodic motif), and rhyming line
+  // endings replay the full chord built for the first line of that rhyme.
+  // rhythm comes from one note per word, duration from syllable count.
+  // each stanza rotates to a different mode + timbre.
   function scheduleLoop() {
     if (!ctx || !master || !playing) return;
     let time = ctx.currentTime + 0.3;
@@ -331,7 +336,6 @@ export function createPoemAudio(poem: string, mood: Mood): PoemAudioHandle {
         const words = line.split(/\s+/).filter(Boolean);
         const baseDegree = words.length % scale.length;
 
-        const sfxFired = new Set<SfxName>();
         words.forEach((rawWord, wordIdx) => {
           const word = normalizeWord(rawWord);
           let degree = baseDegree + (wordIdx % 3) - 1;
@@ -345,17 +349,6 @@ export function createPoemAudio(poem: string, mood: Mood): PoemAudioHandle {
           const duration = 0.22 + syllables * 0.16;
           const freq = noteFreq(rootHz, scale, degree);
           playChord(ctx!, master!, time, [freq], duration, timbre, 0.045);
-
-          (Object.keys(SFX_KEYWORDS) as SfxName[]).forEach((sfx) => {
-            if (sfxFired.has(sfx)) return;
-            if (SFX_KEYWORDS[sfx].some((kw) => word === kw)) {
-              sfxFired.add(sfx);
-              if (sfx === "bells") playBell(ctx!, master!, time, freq * 2);
-              else if (sfx === "footsteps") playFootstep(ctx!, master!, time);
-              else playAnimal(ctx!, master!, time);
-            }
-          });
-
           time += duration * 0.7 + 0.05;
         });
 
@@ -388,34 +381,18 @@ export function createPoemAudio(poem: string, mood: Mood): PoemAudioHandle {
       master.gain.value = 0.9;
       master.connect(ctx.destination);
       playing = true;
-      setupEnvironment();
       scheduleLoop();
     },
     stop() {
       playing = false;
       clearTimers();
-      envLayers.forEach((layer) => layer.stopAll());
-      envLayers.clear();
       ctx?.close();
       ctx = null;
       master = null;
     },
-    triggerBloom() {
-      if (!ctx) return;
-      const now = ctx.currentTime;
-      const layers = Array.from(envLayers.values());
-      let loudest: ContinuousLayer | undefined;
-      for (const layer of layers) {
-        if (!loudest || layer.gain.gain.value > loudest.gain.gain.value) loudest = layer;
-      }
-      if (loudest) {
-        const g = loudest.gain.gain;
-        const current = g.value;
-        g.cancelScheduledValues(now);
-        g.setValueAtTime(current, now);
-        g.linearRampToValueAtTime(Math.min(current + 0.12, 0.3), now + 0.3);
-        g.linearRampToValueAtTime(current, now + 4);
-      }
+    triggerEnv(kind: EnvShot) {
+      if (!ctx || !master || !playing) return;
+      SHOTS[kind](ctx, master);
     },
     isPlaying() {
       return playing;

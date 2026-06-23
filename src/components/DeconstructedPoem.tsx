@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PoemCanvas } from "./PoemCanvas";
 import { MOOD_PALETTE } from "../lib/particlePresets";
 import { buildPaintingPlan } from "../lib/poemPainting";
-import { createPoemAudio } from "../lib/poemAudio";
+import { createPoemAudio, resolveClusterSound } from "../lib/poemAudio";
 import { MOOD_SHAPE } from "../lib/moodShape";
 import type { Mood } from "../lib/moods";
 
@@ -16,6 +16,10 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
   const palette = MOOD_PALETTE[mood];
   const shape = MOOD_SHAPE[mood];
   const plan = useMemo(() => buildPaintingPlan(poem), [poem]);
+  const clusterSounds = useMemo(
+    () => plan.clusters.map((c) => resolveClusterSound(c.words, mood)),
+    [plan, mood]
+  );
   const [soundOn, setSoundOn] = useState(false);
   const audioRef = useRef(createPoemAudio(poem, mood));
 
@@ -36,7 +40,13 @@ export function DeconstructedPoem({ poem, mood, onEdit }: Props) {
 
   return (
     <>
-      <PoemCanvas plan={plan} palette={palette} shape={shape} onBloom={() => audioRef.current.triggerBloom()} />
+      <PoemCanvas
+        plan={plan}
+        palette={palette}
+        shape={shape}
+        clusterSounds={clusterSounds}
+        onInteract={(kind) => audioRef.current.triggerEnv(kind)}
+      />
       <div style={{ position: "relative", textAlign: "center", padding: "2rem 1rem", display: "flex", gap: "0.75rem", justifyContent: "center" }}>
         <button
           onClick={onEdit}

@@ -17,7 +17,7 @@ export function PoemCanvas(props: Props) {
       container.innerHTML = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.plan, props.palette, props.shape]);
+  }, [props.plan, props.palette, props.shape, props.clusterSounds]);
 
   return <div ref={containerRef} />;
 }
