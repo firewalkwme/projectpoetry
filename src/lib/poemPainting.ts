@@ -80,7 +80,10 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
     const dotCount = Math.round(18 + stanzaWordCount * 1.2);
     const dotPositions = Array.from({ length: dotCount }, () => {
       const a = rng() * Math.PI * 2;
-      const r = (0.3 + rng() * 1.5) * radius;
+      // stored as a fraction of the cluster's own radius -- the sketch
+      // multiplies by the pixel radius at draw time, so don't pre-scale
+      // here or the dot field collapses near the center
+      const r = 0.3 + rng() * 1.5;
       return {
         x: Math.cos(a) * r,
         y: Math.sin(a) * r,

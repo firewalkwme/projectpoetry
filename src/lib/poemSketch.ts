@@ -144,7 +144,7 @@ export function createPoemSketch(opts: PoemSketchOptions) {
         if (reveal <= 0) continue;
         const twinkle = 0.5 + 0.5 * Math.sin(t * 1.2 + d.phase);
         p.fill(p.red(col), p.green(col), p.blue(col), 180 * reveal * twinkle);
-        p.circle(cx + d.x * radius * 2, cy + d.y * radius * 2, d.size * (0.6 + twinkle * 0.6));
+        p.circle(cx + d.x * radius, cy + d.y * radius, d.size * (0.6 + twinkle * 0.6));
       }
     }
 
