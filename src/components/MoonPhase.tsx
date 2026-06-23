@@ -61,8 +61,11 @@ export function MoonPhase() {
     // loose, ever-changing spirals instead of a fixed circle
     const orbit = {
       angle: Math.random() * Math.PI * 2,
-      angularSpeed: 0.12 + Math.random() * 0.06,
+      angularSpeed: 0.24 + Math.random() * 0.12,
       radiusPhase: Math.random() * Math.PI * 2,
+      // random offset into the wander path so the moon begins somewhere
+      // different on every visit instead of the same fixed spot
+      tStart: Math.random() * 1000,
     };
 
     const mouse = { x: -9999, y: -9999, hover: false };
@@ -171,9 +174,10 @@ export function MoonPhase() {
 
       // free-floating spiral wander: a drifting anchor orbited at a
       // breathing radius, so the moon's path loops and loosens over time
-      const anchorX = width * 0.55 + Math.sin(t * 0.045) * width * 0.18 + Math.sin(t * 0.081 + 1.3) * width * 0.07;
-      const anchorY = height * 0.32 + Math.sin(t * 0.06 + 0.6) * height * 0.14 + Math.sin(t * 0.034 + 2.1) * height * 0.06;
-      const orbitRadius = radius * (1.6 + 1.3 * (0.5 + 0.5 * Math.sin(t * 0.05 + orbit.radiusPhase)));
+      const tt = t + orbit.tStart;
+      const anchorX = width * 0.5 + Math.sin(tt * 0.07) * width * 0.22 + Math.sin(tt * 0.121 + 1.3) * width * 0.09;
+      const anchorY = height * 0.32 + Math.sin(tt * 0.09 + 0.6) * height * 0.16 + Math.sin(tt * 0.051 + 2.1) * height * 0.08;
+      const orbitRadius = radius * (1.6 + 1.3 * (0.5 + 0.5 * Math.sin(tt * 0.075 + orbit.radiusPhase)));
       orbit.angle += dt * orbit.angularSpeed;
       moon.cx = anchorX + Math.cos(orbit.angle) * orbitRadius;
       moon.cy = anchorY + Math.sin(orbit.angle) * orbitRadius * 0.65;

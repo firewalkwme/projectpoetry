@@ -12,9 +12,12 @@ export function PoemCanvas(props: Props) {
     if (!container) return;
 
     const instance = new p5(createPoemSketch(props), container);
-    return () => instance.remove();
+    return () => {
+      instance.remove();
+      container.innerHTML = "";
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.plan, props.palette]);
+  }, [props.plan, props.palette, props.shape]);
 
   return <div ref={containerRef} />;
 }

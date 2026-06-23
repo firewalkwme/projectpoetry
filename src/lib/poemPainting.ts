@@ -37,7 +37,9 @@ function contentWords(text: string): string[] {
 
 export type PaintingPlan = {
   seed: number;
-  lyricism: number; // 0..1, drives how curling/ornate the piece reads
+  lyricism: number; // 0..1, drives both ornamentation and motion fluidity
+  sizeScale: number; // poem length -> overall composition footprint
+  formDuration: number; // poem length -> seconds to fully assemble
   clusters: ClusterPlan[];
   filaments: [number, number][]; // indices into clusters, connecting lines
 };
@@ -69,12 +71,18 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
   const avgWordLen = words.reduce((a, w) => a + w.replace(/[^a-zA-Z]/g, "").length, 0) / Math.max(words.length, 1);
   const lyricism = Math.min(1, (punctCount / Math.max(lines.length, 1)) * 0.45 + (avgWordLen / 7) * 0.55);
 
+  // poem length controls three things at once: how far the composition
+  // spreads across the canvas, how much detail/density it carries, and
+  // how long it takes to fully assemble
+  const sizeScale = Math.min(1.6, 0.75 + words.length / 160);
+  const formDuration = Math.min(30, Math.max(8, 8 + words.length * 0.18));
+
   const clusterCount = Math.max(1, Math.min(7, stanzas.length || Math.ceil(lines.length / 4) || 1));
 
   const clusters: ClusterPlan[] = [];
   for (let i = 0; i < clusterCount; i++) {
     const angle = (i / clusterCount) * Math.PI * 2 + rng() * 0.5;
-    const distFromCenter = 0.16 + rng() * 0.2;
+    const distFromCenter = (0.16 + rng() * 0.2) * sizeScale;
     const x = 0.5 + Math.cos(angle) * distFromCenter;
     const y = 0.5 + Math.sin(angle) * distFromCenter * 0.8;
 
@@ -82,8 +90,8 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
       (stanzas[i] ? stanzas[i].split(/\s+/).filter(Boolean).length : 0) ||
       Math.round(words.length / clusterCount);
 
-    const radius = 0.075 + Math.min(stanzaWordCount / 50, 1) * 0.09;
-    const dotCount = Math.round(18 + stanzaWordCount * 1.2);
+    const radius = (0.075 + Math.min(stanzaWordCount / 50, 1) * 0.09) * (0.85 + sizeScale * 0.2);
+    const dotCount = Math.round((18 + stanzaWordCount * 1.2) * sizeScale);
     const dotPositions = Array.from({ length: dotCount }, () => {
       const a = rng() * Math.PI * 2;
       // stored as a fraction of the cluster's own radius -- the sketch
@@ -116,5 +124,5 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
     filaments.push([i, (i + 1) % clusters.length]);
   }
 
-  return { seed, lyricism, clusters, filaments };
+  return { seed, lyricism, sizeScale, formDuration, clusters, filaments };
 }
