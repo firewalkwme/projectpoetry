@@ -14,7 +14,7 @@ export function PoemCanvas(props: Props) {
     const instance = new p5(createPoemSketch(props), container);
     return () => instance.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.words, props.color]);
+  }, [props.plan, props.palette]);
 
   return <div ref={containerRef} />;
 }
