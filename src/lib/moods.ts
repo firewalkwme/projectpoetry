@@ -16,7 +16,9 @@ const LEXICON: Record<Exclude<Mood, "neutral">, string[]> = {
   melancholic: [
     "sad", "sadness", "sorrow", "tears", "cry", "crying", "grief", "weep",
     "lonely", "loneliness", "lost", "fading", "gray", "grey", "ache",
-    "longing", "empty", "hollow", "mourn", "wither", "fade", "gloom",
+    "longing", "empty", "emptiness", "hollow", "mourn", "wither", "fade",
+    "gloom", "abyss", "subtle", "years", "far", "remember", "absence",
+    "gone", "distance", "ending", "passed", "little", "maybe",
   ],
   angry: [
     "anger", "angry", "rage", "fury", "furious", "hate", "hatred", "wrath",
