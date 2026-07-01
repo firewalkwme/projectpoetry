@@ -139,6 +139,9 @@ export function buildPaintingPlan(poem: string): PaintingPlan {
   const filaments: [number, number][] = [];
   for (let i = 0; i < clusters.length; i++) {
     filaments.push([i, (i + 1) % clusters.length]);
+    if (clusters.length > 2) {
+      filaments.push([i, (i + 2) % clusters.length]);
+    }
   }
 
   return { seed, lyricism, sizeScale, formDuration, existential, clusters, filaments };
