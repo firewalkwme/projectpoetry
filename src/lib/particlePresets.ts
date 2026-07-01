@@ -1,105 +1,14 @@
-import type { ISourceOptions } from "@tsparticles/engine";
 import type { Mood } from "./moods";
 
-type Preset = {
-  background: string;
-  options: ISourceOptions;
+// surreal, earthy/jewel-toned palettes per mood -- deliberately muted and
+// painterly rather than neon, to match the reference paintings (Redon/Ernst
+// style botanical-cosmic dreamscapes) rather than the glowing-orb look
+export const MOOD_PALETTE: Record<Mood, string[]> = {
+  joyful: ["#caa24a", "#e2c275", "#8c4a3a", "#3c5b4e", "#f1e2b0"],
+  melancholic: ["#3a4a5e", "#6b7c93", "#232838", "#8d99ae", "#171c28"],
+  angry: ["#7a1f2b", "#b3432f", "#2b1014", "#d97a3f", "#4a1118"],
+  calm: ["#7fa9a0", "#cfd9c7", "#3f5e5a", "#e8e0c9", "#4f6f72"],
+  romantic: ["#b0566f", "#e3a9b0", "#5c2a3a", "#d8a0a8", "#7a3a4a"],
+  fearful: ["#1c1f33", "#3b2f4a", "#0d0c14", "#54466b", "#241f33"],
+  neutral: ["#6e6457", "#a89f8a", "#3d3830", "#c9bfa5", "#534b3f"],
 };
-
-const PRESETS: Record<Mood, Preset> = {
-  joyful: {
-    background: "#fff7e6",
-    options: {
-      particles: {
-        number: { value: 80 },
-        color: { value: ["#ffb703", "#fb8500", "#ffd166", "#ff006e"] },
-        shape: { type: "circle" },
-        opacity: { value: 0.8 },
-        size: { value: { min: 2, max: 6 } },
-        move: { enable: true, speed: 2, direction: "top", outModes: { default: "out" } },
-      },
-    },
-  },
-  melancholic: {
-    background: "#1d2433",
-    options: {
-      particles: {
-        number: { value: 60 },
-        color: { value: ["#8d99ae", "#5c6b8a", "#3a4a6b"] },
-        shape: { type: "circle" },
-        opacity: { value: 0.4 },
-        size: { value: { min: 1, max: 4 } },
-        move: { enable: true, speed: 0.6, direction: "bottom", outModes: { default: "out" } },
-      },
-    },
-  },
-  angry: {
-    background: "#1a0b0b",
-    options: {
-      particles: {
-        number: { value: 100 },
-        color: { value: ["#d00000", "#dc2f02", "#e85d04", "#9d0208"] },
-        shape: { type: "triangle" },
-        opacity: { value: 0.7 },
-        size: { value: { min: 2, max: 7 } },
-        move: { enable: true, speed: 4, direction: "none", outModes: { default: "bounce" } },
-      },
-    },
-  },
-  calm: {
-    background: "#e8f6f3",
-    options: {
-      particles: {
-        number: { value: 50 },
-        color: { value: ["#a8dadc", "#90e0ef", "#caf0f8"] },
-        shape: { type: "circle" },
-        opacity: { value: 0.5 },
-        size: { value: { min: 2, max: 5 } },
-        move: { enable: true, speed: 0.4, direction: "none", outModes: { default: "out" } },
-      },
-    },
-  },
-  romantic: {
-    background: "#2b1320",
-    options: {
-      particles: {
-        number: { value: 70 },
-        color: { value: ["#ff4d6d", "#ff8fa3", "#c9184a", "#ffccd5"] },
-        shape: { type: "heart" },
-        opacity: { value: 0.7 },
-        size: { value: { min: 2, max: 6 } },
-        move: { enable: true, speed: 1, direction: "top", outModes: { default: "out" } },
-      },
-    },
-  },
-  fearful: {
-    background: "#0a0a0a",
-    options: {
-      particles: {
-        number: { value: 90 },
-        color: { value: ["#3a0ca3", "#240046", "#10002b", "#5a189a"] },
-        shape: { type: "circle" },
-        opacity: { value: 0.6 },
-        size: { value: { min: 1, max: 5 } },
-        move: { enable: true, speed: 1.5, direction: "none", random: true, outModes: { default: "out" } },
-      },
-    },
-  },
-  neutral: {
-    background: "#f5f5f5",
-    options: {
-      particles: {
-        number: { value: 40 },
-        color: { value: ["#adb5bd", "#ced4da", "#dee2e6"] },
-        shape: { type: "circle" },
-        opacity: { value: 0.5 },
-        size: { value: { min: 1, max: 4 } },
-        move: { enable: true, speed: 0.8, direction: "none", outModes: { default: "out" } },
-      },
-    },
-  },
-};
-
-export function getPreset(mood: Mood): Preset {
-  return PRESETS[mood];
-}
